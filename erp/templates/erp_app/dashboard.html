@@ -1,0 +1,319 @@
+<!-- templates/erp_app/dashboard.html -->
+{% extends 'base.html' %}
+
+{% block title %}Дашборд - ERP Спартак{% endblock %}
+
+{% block content %}
+<!-- Приветственный баннер -->
+<div class="welcome-banner">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h1><i class="bi bi-building"></i> ERP: Спартак</h1>
+            <p class="lead mb-0">
+                Добро пожаловать, {{ user.username }}! 
+                <span class="badge bg-light text-dark">{{ user_role_display }}</span>
+            </p>
+        </div>
+        <div class="text-end">
+            <h2 class="display-6">{{ role_greeting }}</h2>
+            <p class="mb-0">{{ now|date:"d E Y, H:i" }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Уведомления -->
+{% if notifications %}
+<div class="mb-4">
+    {% for notification in notifications %}
+    <div class="alert alert-{{ notification.type }} alert-dismissible fade show" role="alert">
+        <i class="bi bi-info-circle"></i> {{ notification.message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Карточки статистики -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-number">{{ total_products }}</div>
+                    <div class="stat-label">Товаров на складе</div>
+                </div>
+                <div class="stat-icon">
+                    <i class="bi bi-box"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <span class="text-success"><i class="bi bi-arrow-up"></i> 12%</span>
+                <span class="text-muted"> с прошлого месяца</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-number">{{ total_customers }}</div>
+                    <div class="stat-label">Активных клиентов</div>
+                </div>
+                <div class="stat-icon">
+                    <i class="bi bi-people"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <span class="text-success"><i class="bi bi-arrow-up"></i> 8%</span>
+                <span class="text-muted"> с прошлого месяца</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-number">{{ total_orders }}</div>
+                    <div class="stat-label">Заказов в этом месяце</div>
+                </div>
+                <div class="stat-icon">
+                    <i class="bi bi-cart"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <span class="text-warning"><i class="bi bi-arrow-down"></i> 3%</span>
+                <span class="text-muted"> с прошлого месяца</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between">
+                <div>
+                    <div class="stat-number">{{ total_revenue|floatformat:0 }} ₽</div>
+                    <div class="stat-label">Выручка</div>
+                </div>
+                <div class="stat-icon">
+                    <i class="bi bi-currency-ruble"></i>
+                </div>
+            </div>
+            <div class="mt-3">
+                <span class="text-success"><i class="bi bi-arrow-up"></i> 15%</span>
+                <span class="text-muted"> с прошлого месяца</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ролевая специфичная информация -->
+{% if role_specific %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-star"></i> {{ role_specific.title }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for key, value in role_specific.data.items %}
+                    <div class="col-md-3 col-6 text-center">
+                        <h3>{{ value }}</h3>
+                        <p class="text-muted">{{ key|title }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Графики и таблицы -->
+<div class="row">
+    <!-- График заказов -->
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-graph-up"></i> Динамика заказов</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="ordersChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- График выручки -->
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-cash-stack"></i> Выручка по дням</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="revenueChart" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Последние заказы -->
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Последние заказы</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>№ заказа</th>
+                                <th>Клиент</th>
+                                <th>Дата</th>
+                                <th>Сумма</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td>{{ order.id }}</td>
+                                <td>{{ order.customer }}</td>
+                                <td>{{ order.date }}</td>
+                                <td>{{ order.amount }} ₽</td>
+                                <td>
+                                    {% if order.status == 'Выполнен' %}
+                                        <span class="badge bg-success">{{ order.status }}</span>
+                                    {% elif order.status == 'В обработке' %}
+                                        <span class="badge bg-warning">{{ order.status }}</span>
+                                    {% elif order.status == 'Ожидает' %}
+                                        <span class="badge bg-info">{{ order.status }}</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ order.status }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Активные задачи -->
+    <div class="col-xl-6 col-lg-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-check2-square"></i> Активные задачи</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for task in active_tasks %}
+                    <div class="list-group-item list-group-item-action">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ task.title }}</h6>
+                            <small>
+                                {% if task.priority == 'Высокий' %}
+                                    <span class="badge bg-danger">{{ task.priority }}</span>
+                                {% elif task.priority == 'Средний' %}
+                                    <span class="badge bg-warning">{{ task.priority }}</span>
+                                {% else %}
+                                    <span class="badge bg-success">{{ task.priority }}</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <p class="mb-1">Исполнитель: {{ task.assigned_to }}</p>
+                        <small class="text-muted">Срок: {{ task.deadline }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Быстрые действия -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-lightning"></i> Быстрые действия</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-primary me-2">
+                    <i class="bi bi-plus-circle"></i> Новый заказ
+                </button>
+                <button class="btn btn-success me-2">
+                    <i class="bi bi-file-text"></i> Создать отчет
+                </button>
+                <button class="btn btn-info me-2">
+                    <i class="bi bi-truck"></i> Добавить поставку
+                </button>
+                <button class="btn btn-warning">
+                    <i class="bi bi-person-plus"></i> Новый клиент
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Скрипты для графиков -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // График заказов
+    const ordersCtx = document.getElementById('ordersChart').getContext('2d');
+    new Chart(ordersCtx, {
+        type: 'line',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [{
+                label: 'Количество заказов',
+                data: {{ orders_data|safe }},
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // График выручки
+    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+    new Chart(revenueCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ chart_labels|safe }},
+            datasets: [{
+                label: 'Выручка (₽)',
+                data: {{ revenue_data|safe }},
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgb(54, 162, 235)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString() + ' ₽';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

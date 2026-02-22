@@ -1,0 +1,454 @@
+<!-- templates/accounts/register.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Регистрация - ERP Спартак</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+        .register-container {
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            animation: slideUp 0.5s ease;
+        }
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .register-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .register-header h1 {
+            color: #333;
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .register-header h1 span {
+            color: #667eea;
+        }
+        .register-header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: all 0.3s;
+            background: white;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #667eea;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .form-group input.error, .form-group select.error {
+            border-color: #dc3545;
+        }
+        .error-message {
+            color: #dc3545;
+            font-size: 0.85em;
+            margin-top: 5px;
+        }
+        .help-text {
+            color: #6c757d;
+            font-size: 0.85em;
+            margin-top: 5px;
+        }
+        .btn-register {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+        .btn-register:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .alert {
+            padding: 12px 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-color: #c3e6cb;
+        }
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #bee5eb;
+        }
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+        }
+        .login-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+        .password-requirements {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-size: 0.9em;
+        }
+        .password-requirements p {
+            margin-bottom: 10px;
+            font-weight: 600;
+            color: #495057;
+        }
+        .password-requirements ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #6c757d;
+        }
+        .password-requirements li {
+            margin-bottom: 5px;
+        }
+        .password-requirements li.valid {
+            color: #28a745;
+        }
+        .role-selector {
+            margin-bottom: 20px;
+        }
+        .role-selector label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        .role-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        .role-option {
+            background: #f8f9fa;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            padding: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        .role-option:hover {
+            border-color: #667eea;
+            background: #f0f2ff;
+        }
+        .role-option.selected {
+            border-color: #667eea;
+            background: #e6e9ff;
+        }
+        .role-option input[type="radio"] {
+            display: none;
+        }
+        .role-option i {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        .role-option span {
+            display: block;
+            font-weight: 500;
+            color: #495057;
+        }
+        .role-option small {
+            color: #6c757d;
+            font-size: 0.85em;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="register-header">
+            <h1>ERP <span>Спартак</span></h1>
+            <p>Регистрация нового пользователя</p>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if form.errors %}
+            <div class="alert alert-error">
+                <strong>Ошибка!</strong> Пожалуйста, исправьте ошибки ниже.
+            </div>
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+
+            <!-- Имя пользователя -->
+            <div class="form-group">
+                <label for="id_username">
+                    <i class="bi bi-person"></i> Имя пользователя
+                </label>
+                <input type="text" 
+                       name="username" 
+                       id="id_username" 
+                       value="{{ form.username.value|default:'' }}"
+                       class="{% if form.username.errors %}error{% endif %}"
+                       required 
+                       placeholder="Введите имя пользователя"
+                       maxlength="150"
+                       autofocus>
+                {% if form.username.errors %}
+                    <div class="error-message">
+                        {% for error in form.username.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="help-text">
+                        Обязательное поле. Не более 150 символов. Только буквы, цифры и @/./+/-/_.
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Email -->
+            <div class="form-group">
+                <label for="id_email">
+                    <i class="bi bi-envelope"></i> Email
+                </label>
+                <input type="email" 
+                       name="email" 
+                       id="id_email" 
+                       value="{{ form.email.value|default:'' }}"
+                       class="{% if form.email.errors %}error{% endif %}"
+                       required 
+                       placeholder="Введите email">
+                {% if form.email.errors %}
+                    <div class="error-message">
+                        {% for error in form.email.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Выбор роли -->
+            <div class="role-selector">
+                <label for="id_role">
+                    <i class="bi bi-person-badge"></i> Выберите роль
+                </label>
+                <select name="role" id="id_role" class="form-control" required>
+                    <option value="">-- Выберите роль --</option>
+                    <option value="director" {% if form.role.value == 'director' %}selected{% endif %}>Директор</option>
+                    <option value="accountant" {% if form.role.value == 'accountant' %}selected{% endif %}>Бухгалтер</option>
+                    <option value="logistician" {% if form.role.value == 'logistician' %}selected{% endif %}>Логист</option>
+                    <option value="crew" {% if form.role.value == 'crew' %}selected{% endif %}>Экипаж судна</option>
+                    <option value="fleet_manager" {% if form.role.value == 'fleet_manager' %}selected{% endif %}>Управляющий флотом</option>
+                </select>
+                {% if form.role.errors %}
+                    <div class="error-message">
+                        {% for error in form.role.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Альтернативный вариант с радио-кнопками (раскомментируйте если нужен) -->
+            <!--
+            <div class="role-selector">
+                <label>Выберите роль:</label>
+                <div class="role-options">
+                    <label class="role-option">
+                        <input type="radio" name="role" value="director">
+                        <i class="bi bi-person-workspace"></i>
+                        <span>Директор</span>
+                        <small>Полный доступ</small>
+                    </label>
+                    <label class="role-option">
+                        <input type="radio" name="role" value="accountant">
+                        <i class="bi bi-calculator"></i>
+                        <span>Бухгалтер</span>
+                        <small>Финансы</small>
+                    </label>
+                    <label class="role-option">
+                        <input type="radio" name="role" value="logistician">
+                        <i class="bi bi-truck"></i>
+                        <span>Логист</span>
+                        <small>Поставки</small>
+                    </label>
+                    <label class="role-option">
+                        <input type="radio" name="role" value="crew">
+                        <i class="bi bi-ship"></i>
+                        <span>Экипаж судна</span>
+                        <small>Море</small>
+                    </label>
+                    <label class="role-option">
+                        <input type="radio" name="role" value="fleet_manager">
+                        <i class="bi bi-gear"></i>
+                        <span>Управляющий флотом</span>
+                        <small>Управление</small>
+                    </label>
+                </div>
+            </div>
+            -->
+
+            <!-- Пароль -->
+            <div class="form-group">
+                <label for="id_password1">
+                    <i class="bi bi-lock"></i> Пароль
+                </label>
+                <input type="password" 
+                       name="password1" 
+                       id="id_password1" 
+                       class="{% if form.password1.errors %}error{% endif %}"
+                       required 
+                       placeholder="Введите пароль">
+                {% if form.password1.errors %}
+                    <div class="error-message">
+                        {% for error in form.password1.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Подтверждение пароля -->
+            <div class="form-group">
+                <label for="id_password2">
+                    <i class="bi bi-lock-fill"></i> Подтверждение пароля
+                </label>
+                <input type="password" 
+                       name="password2" 
+                       id="id_password2" 
+                       class="{% if form.password2.errors %}error{% endif %}"
+                       required 
+                       placeholder="Повторите пароль">
+                {% if form.password2.errors %}
+                    <div class="error-message">
+                        {% for error in form.password2.errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Требования к паролю -->
+            <div class="password-requirements">
+                <p>Требования к паролю:</p>
+                <ul>
+                    <li>Пароль не должен быть слишком похож на другую вашу личную информацию</li>
+                    <li>Пароль должен содержать минимум 8 символов</li>
+                    <li>Пароль не может быть часто используемым паролем</li>
+                    <li>Пароль не может состоять только из цифр</li>
+                </ul>
+            </div>
+
+            <button type="submit" class="btn-register">
+                <i class="bi bi-person-plus"></i> Зарегистрироваться
+            </button>
+        </form>
+
+        <div class="login-link">
+            Уже есть аккаунт? <a href="{% url 'login' %}">Войти в систему</a>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center; font-size: 0.85em; color: #999;">
+            &copy; 2026 ERP Спартак. Все права защищены.
+        </div>
+    </div>
+
+    <script>
+        // Добавляем иконки Bootstrap Icons
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css';
+        document.head.appendChild(link);
+
+        // Валидация пароля в реальном времени
+        document.getElementById('id_password1').addEventListener('input', function(e) {
+            const password = e.target.value;
+            const requirements = document.querySelectorAll('.password-requirements li');
+            
+            requirements[0].style.color = password.length > 0 ? '#28a745' : '#6c757d';
+            requirements[1].style.color = password.length >= 8 ? '#28a745' : '#6c757d';
+        });
+
+        // Проверка совпадения паролей
+        document.getElementById('id_password2').addEventListener('input', function(e) {
+            const password1 = document.getElementById('id_password1').value;
+            const password2 = e.target.value;
+            
+            if (password2.length > 0) {
+                if (password1 === password2) {
+                    e.target.style.borderColor = '#28a745';
+                } else {
+                    e.target.style.borderColor = '#dc3545';
+                }
+            }
+        });
+
+        // Для альтернативного варианта с радио-кнопками
+        document.querySelectorAll('.role-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.role-option').forEach(opt => {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+                this.querySelector('input[type="radio"]').checked = true;
+            });
+        });
+    </script>
+</body>
+</html>
