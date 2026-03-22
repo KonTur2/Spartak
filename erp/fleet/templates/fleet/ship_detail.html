@@ -1,0 +1,217 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Судно {{ ship.name }}{% endblock %}
+
+{% block page_title %}Судно {{ ship.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+<li class="breadcrumb-item active">{{ ship.name }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-4">
+        <!-- Карточка судна -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Основная информация</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th>Название:</th>
+                        <td>{{ ship.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>Тип:</th>
+                        <td>{{ ship.get_type_display }}</td>
+                    </tr>
+                    <tr>
+                        <th>Номер ИМО:</th>
+                        <td>{{ ship.imo_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Статус:</th>
+                        <td>
+                            {% if ship.status == 'at_sea' %}
+                            <span class="badge bg-success">В море</span>
+                            {% elif ship.status == 'in_port' %}
+                            <span class="badge bg-warning">В порту</span>
+                            {% elif ship.status == 'under_repair' %}
+                            <span class="badge bg-danger">На ремонте</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ ship.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Местоположение:</th>
+                        <td>{{ ship.current_location|default:"—" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Техническое состояние:</th>
+                        <td>{{ ship.technical_condition|default:"—" }}</td>
+                    </tr>
+                </table>
+                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                <div class="d-grid gap-2 mt-3">
+                    <a href="{% url 'fleet:ship_edit' ship.id %}" class="btn btn-warning">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </a>
+                    <a href="{% url 'fleet:voyage_create_for_ship' ship.id %}" class="btn btn-primary">
+                        <i class="bi bi-ship"></i> Создать рейс
+                    </a>
+                    <a href="{% url 'fleet:maintenance_create_for_ship' ship.id %}" class="btn btn-outline-warning">
+                        <i class="bi bi-tools"></i> Добавить ТО
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Экипаж -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Экипаж ({{ crew.count }})</h5>
+            </div>
+            <div class="card-body">
+                {% if crew %}
+                <div class="list-group list-group-flush">
+                    {% for member in crew %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">{{ member.user.get_full_name|default:member.user.username }}</h6>
+                            <small class="text-muted">{{ member.get_rank_display }}</small>
+                        </div>
+                        <p class="mb-1 small">
+                            Контракт до: {{ member.contract_end_date|date:"d.m.Y"|default:"не указано" }}
+                        </p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted">Экипаж не назначен</p>
+                {% endif %}
+                <div class="mt-3">
+                    <a href="{% url 'fleet:crew_list' %}" class="btn btn-sm btn-outline-secondary">Весь экипаж</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <!-- История рейсов -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">История рейсов</h5>
+                <a href="{% url 'fleet:voyage_create_for_ship' ship.id %}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus-circle"></i> Новый рейс
+                </a>
+            </div>
+            <div class="card-body p-0">
+                {% if voyages %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Дата выхода</th>
+                                <th>Дата возвращения</th>
+                                <th>Район промысла</th>
+                                <th>План / Факт (т)</th>
+                                <th>Статус</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for voyage in voyages %}
+                            <tr>
+                                <td>{{ voyage.start_date|date:"d.m.Y H:i" }}</td>
+                                <td>{{ voyage.end_date|date:"d.m.Y H:i"|default:"—" }}</td>
+                                <td>{{ voyage.get_fishing_area_display }}</td>
+                                <td>
+                                    {{ voyage.catch_plan }} /
+                                    <strong>{{ voyage.actual_catch|default:"—" }}</strong>
+                                </td>
+                                <td>
+                                    {% if voyage.is_completed %}
+                                    <span class="badge bg-success">Завершён</span>
+                                    {% else %}
+                                    <span class="badge bg-info">В процессе</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if user.role.role in 'director,fleet_manager' %}
+                                        {% if not voyage.is_completed %}
+                                        <a href="{% url 'fleet:voyage_edit' voyage.id %}"
+                                            class="btn btn-sm btn-outline-primary me-1">
+                                            Редактировать
+                                        </a>
+                                        <a href="{% url 'fleet:voyage_complete' voyage.id %}"
+                                            class="btn btn-sm btn-outline-success">
+                                            Завершить
+                                        </a>
+                                        {% else %}
+                                        <a href="{% url 'fleet:voyage_edit' voyage.id %}"
+                                            class="btn btn-sm btn-outline-secondary">
+                                            Просмотр
+                                        </a>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted">Нет данных о рейсах</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- История ремонтов -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Техническое обслуживание и ремонты</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if maintenances %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Дата</th>
+                                <th>Тип</th>
+                                <th>Описание</th>
+                                <th>Стоимость (руб.)</th>
+                                <th>Подрядчик</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for maint in maintenances %}
+                            <tr>
+                                <td>{{ maint.date|date:"d.m.Y" }}</td>
+                                <td><span class="badge bg-secondary">{{ maint.get_maintenance_type_display }}</span>
+                                </td>
+                                <td>{{ maint.description|truncatechars:80 }}</td>
+                                <td>{{ maint.cost }}</td>
+                                <td>{{ maint.contractor|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted">Нет данных о ТО/ремонтах</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

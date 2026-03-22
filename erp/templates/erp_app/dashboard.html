@@ -244,16 +244,22 @@
                 <h5 class="mb-0"><i class="bi bi-lightning"></i> Быстрые действия</h5>
             </div>
             <div class="card-body">
-                <button class="btn btn-primary me-2">
+                <a href="{% url 'fleet:crew_create' %}" class="btn btn-primary me-2">
+                    <i class="bi bi-person-plus"></i> Добавить сотрудника
+                </a>
+                <a href="{% url 'fleet:ship_create' %}" class="btn btn-success me-2">
+                    <i class="bi bi-plus-circle"></i> Добавить судно
+                </a>
+                <button class="btn btn-info me-2">
                     <i class="bi bi-plus-circle"></i> Новый заказ
                 </button>
-                <button class="btn btn-success me-2">
+                <button class="btn btn-warning me-2">
                     <i class="bi bi-file-text"></i> Создать отчет
                 </button>
-                <button class="btn btn-info me-2">
+                <button class="btn btn-secondary me-2">
                     <i class="bi bi-truck"></i> Добавить поставку
                 </button>
-                <button class="btn btn-warning">
+                <button class="btn btn-dark">
                     <i class="bi bi-person-plus"></i> Новый клиент
                 </button>
             </div>

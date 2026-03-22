@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'fleet:maintenance_list' %}">Судоремонт</a></li>
+    <li class="breadcrumb-item active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Добавление ТО/ремонта</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="ship" class="form-label">Судно *</label>
+                        <select class="form-select" id="ship" name="ship" required>
+                            {% if ship %}
+                                <option value="{{ ship.id }}" selected>{{ ship.name }}</option>
+                            {% else %}
+                                <option value="">Выберите судно</option>
+                                {% for s in ships %}
+                                    <option value="{{ s.id }}" {% if maintenance and maintenance.ship.id == s.id %}selected{% endif %}>{{ s.name }} ({{ s.imo_number }})</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="maintenance_type" class="form-label">Тип работ *</label>
+                        <select class="form-select" id="maintenance_type" name="maintenance_type" required>
+                            {% for value, label in maintenance_type_choices %}
+                                <option value="{{ value }}" {% if maintenance and maintenance.maintenance_type == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Статус *</label>
+                        <select class="form-select" id="status" name="status" required>
+                            {% for value, label in status_choices %}
+                                <option value="{{ value }}" {% if maintenance and maintenance.status == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Описание работ</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{% if maintenance %}{{ maintenance.description }}{% endif %}</textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="start_date" class="form-label">Дата начала *</label>
+                                <input type="date" class="form-control" id="start_date" name="start_date" value="{% if maintenance %}{{ maintenance.start_date|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="end_date" class="form-label">Дата окончания (если есть)</label>
+                                <input type="date" class="form-control" id="end_date" name="end_date" value="{% if maintenance and maintenance.end_date %}{{ maintenance.end_date|date:'Y-m-d' }}{% endif %}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cost" class="form-label">Стоимость (руб.)</label>
+                        <input type="number" step="0.01" class="form-control" id="cost" name="cost" value="{% if maintenance %}{{ maintenance.cost }}{% else %}0{% endif %}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="contractor" class="form-label">Подрядчик (выберите из списка)</label>
+                        <select class="form-select" id="contractor" name="contractor">
+                            <option value="">Не выбран</option>
+                            {% for c in contractors %}
+                                <option value="{{ c.id }}" {% if maintenance and maintenance.contractor and maintenance.contractor.id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Если подрядчика нет в списке, укажите в поле ниже</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contractor_text" class="form-label">Подрядчик (текст)</label>
+                        <input type="text" class="form-control" id="contractor_text" name="contractor_text" value="{% if maintenance %}{{ maintenance.contractor_text }}{% endif %}" placeholder="Название организации, контактные данные">
+                        <small class="text-muted">Заполните, если подрядчик не выбран из списка</small>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'fleet:maintenance_list' %}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
