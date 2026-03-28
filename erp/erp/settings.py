@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'accounts',
     'erp_app',
     'finance_app',
+    'fleet',
 ]
 
 MIDDLEWARE = [

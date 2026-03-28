@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">{{ page_title }}</h1>
+        <div>
+            <button class="btn btn-outline-primary" onclick="window.print()">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <a href="{% url 'fleet:maintenance_list' %}" class="btn btn-secondary">
+                <i class="bi bi-list"></i> К списку ремонтов
+            </a>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="start_date" class="form-label">Дата с</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date"
+                           value="{{ start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="end_date" class="form-label">Дата по</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date"
+                           value="{{ end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="status" class="form-label">Статус</label>
+                    <select class="form-select" id="status" name="status">
+                        <option value="">Все</option>
+                        <option value="planned" {% if status_filter == 'planned' %}selected{% endif %}>Запланировано</option>
+                        <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>В работе</option>
+                        <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Завершено</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Применить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Судно</th>
+                            <th>Вид ТО</th>
+                            <th>Дата начала</th>
+                            <th>Дата окончания</th>
+                            <th>Статус</th>
+                            <th>Контрагент</th>
+                            <th>Стоимость, руб.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in maintenances %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' m.ship.id %}">{{ m.ship.name }}</a>
+                            </td>
+                            <td>{{ m.get_maintenance_type_display }}</td>
+                            <td>{{ m.start_date|date:"d.m.Y" }}</td>
+                            <td>{{ m.end_date|date:"d.m.Y"|default:"—" }}</td>
+                            <td>
+                                <span class="badge
+                                    {% if m.status == 'planned' %}bg-warning
+                                    {% elif m.status == 'in_progress' %}bg-info
+                                    {% else %}bg-success{% endif %}">
+                                    {{ m.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if m.contractor %}
+                                    {{ m.contractor.name }}
+                                {% else %}
+                                    {{ m.contractor_text|default:"—" }}
+                                {% endif %}
+                            </td>
+                            <td class="text-end">{{ m.cost|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4">Нет данных за выбранный период</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 text-muted small">
+        <p>Отчет сформирован {{ current_date|date:"d.m.Y H:i" }}</p>
+    </div>
+</div>
+
+<style>
+@media print {
+    .btn, .card:first-child, .text-muted {
+        display: none !important;
+    }
+    body {
+        font-size: 12pt;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+}
+</style>
+{% endblock %}

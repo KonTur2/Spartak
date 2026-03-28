@@ -10,4 +10,5 @@ urlpatterns = [
     path('profile/', accounts_views.profile_view, name='profile'),
     path('', include('erp_app.urls')), 
     path('finance/', include('finance_app.urls')),
+    path('fleet/', include('fleet.urls')),
 ]

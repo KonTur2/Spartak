@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">{{ page_title }}</h1>
+        <div>
+            <button class="btn btn-outline-primary" onclick="window.print()">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <a href="{% url 'fleet:fleet_dashboard' %}" class="btn btn-secondary">
+                <i class="bi bi-speedometer2"></i> На дашборд
+            </a>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-3">
+                    <label for="start_date" class="form-label">Дата с</label>
+                    <input type="date" class="form-control" id="start_date" name="start_date"
+                           value="{{ start_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="end_date" class="form-label">Дата по</label>
+                    <input type="date" class="form-control" id="end_date" name="end_date"
+                           value="{{ end_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="period" class="form-label">Период</label>
+                    <select class="form-select" id="period" name="period">
+                        <option value="month" {% if period_type == 'month' %}selected{% endif %}>Месяц</option>
+                        <option value="quarter" {% if period_type == 'quarter' %}selected{% endif %}>Квартал</option>
+                        <option value="custom" {% if period_type == 'custom' %}selected{% endif %}>Произвольный</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Применить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Сводка -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Судов в отчёте</h5>
+                    <p class="card-text display-6">{{ performance_data|length }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-success">
+                <div class="card-body">
+                    <h5 class="card-title">Всего рейсов</h5>
+                    <p class="card-text display-6">
+                        {{ total_voyages }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-info">
+                <div class="card-body">
+                    <h5 class="card-title">Общий вылов, т</h5>
+                    <p class="card-text display-6">
+                        {{ total_catch|floatformat:1 }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning">
+                <div class="card-body">
+                    <h5 class="card-title">Дней в море</h5>
+                    <p class="card-text display-6">
+                        {{ total_days }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Судно</th>
+                            <th>Рейсов</th>
+                            <th>Вылов, т</th>
+                            <th>Дней в море</th>
+                            <th>Средний вылов за рейс, т</th>
+                            <th>Средняя продолжительность рейса, дней</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in performance_data %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' item.ship.id %}">{{ item.ship.name }}</a>
+                            </td>
+                            <td class="text-center">{{ item.voyage_count }}</td>
+                            <td class="text-end">{{ item.total_catch|floatformat:1 }}</td>
+                            <td class="text-end">{{ item.total_days }}</td>
+                            <td class="text-end">
+                                {% if item.voyage_count > 0 %}
+                                    {{ item.total_catch|floatformat:1 }}
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if item.voyage_count > 0 %}
+                                    {{ item.total_days|floatformat:1 }}
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-4">Нет данных за выбранный период</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 text-muted small">
+        <p>Отчет сформирован {{ current_date|date:"d.m.Y H:i" }} за период с {{ start_date|date:"d.m.Y" }} по {{ end_date|date:"d.m.Y" }}</p>
+    </div>
+</div>
+
+<style>
+@media print {
+    .btn, .card:first-child, .row.mb-4, .text-muted {
+        display: none !important;
+    }
+    body {
+        font-size: 12pt;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    th, td {
+        border: 1px solid #ddd;
+        padding: 8px;
+    }
+}
+</style>
+{% endblock %}

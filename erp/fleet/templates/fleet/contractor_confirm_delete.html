@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Удалить контрагента{% endblock %}
+
+{% block page_title %}Удалить контрагента{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'fleet:contractor_list' %}">Контрагенты</a></li>
+    <li class="breadcrumb-item active">Удаление</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Подтверждение удаления</h5>
+            </div>
+            <div class="card-body">
+                <p>Вы уверены, что хотите удалить контрагента <strong>{{ contractor.name }}</strong>?</p>
+                <p class="text-muted">Это действие нельзя отменить. Все связанные записи о ремонтах сохранят ссылку на этого контрагента, но будут отображаться как "Не указан".</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'fleet:contractor_list' %}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-danger">Удалить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

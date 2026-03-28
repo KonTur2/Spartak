@@ -92,16 +92,9 @@ def logistics_view(request):
 
 @login_required
 def fleet_view(request):
-    """Страница для управляющего флотом и экипажа"""
-    if hasattr(request.user, 'role') and request.user.role.role not in ['director', 'fleet_manager', 'crew']:
-        messages.error(request, 'У вас нет доступа к этому разделу')
-        return redirect('dashboard')
-    
-    context = {
-        'title': 'Управление флотом',
-        'user_role': request.user.role.get_role_display() if hasattr(request.user, 'role') else '',
-    }
-    return render(request, 'erp_app/fleet.html', context)
+    """Перенаправление на новый модуль управления флотом"""
+    from fleet.views import fleet_dashboard
+    return fleet_dashboard(request)
 
 
 @login_required
@@ -122,4 +115,6 @@ def documents_view(request):
 
 @login_required
 def shiprepair_view(request):
-    return render(request, 'erp_app/shiprepair.html', {'title': 'Судоремонт'})
+    """Перенаправление на модуль судоремонта во флоте"""
+    from fleet.views import maintenance_list
+    return maintenance_list(request)

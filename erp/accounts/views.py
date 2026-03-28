@@ -50,6 +50,10 @@ def get_role_based_redirect(user):
             return reverse('fleet')  # Нужно создать этот URL
         elif role == 'crew':
             return reverse('fleet')  # Нужно создать этот URL
+        elif role == 'dispatcher':
+            return reverse('fleet')  # Диспетчер -> управление флотом
+        elif role == 'engineer':
+            return reverse('fleet')  # Инженер -> управление флотом (или судоремонт)
     # По умолчанию на дашборд (но он будет проверять доступ)
     return reverse('dashboard')
 

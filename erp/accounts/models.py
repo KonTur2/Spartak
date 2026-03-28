@@ -11,6 +11,8 @@ class UserRole(models.Model):
         ('logistician', 'Логист'),
         ('crew', 'Экипаж судна'),
         ('fleet_manager', 'Управляющий флотом'),
+        ('dispatcher', 'Диспетчер'),
+        ('engineer', 'Инженер'),
     ]
     
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='role')

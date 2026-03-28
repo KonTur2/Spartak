@@ -470,32 +470,17 @@
         {% endif %}
 
         <!-- ДОБЫЧА И ПЕРЕРАБОТКА -->
-        {% if user_role == 'director' or user_role == 'logistician' %}
+        {% if user_role == 'director' or user_role == 'logistician' or user_role == 'fleet_manager' or user_role == 'crew' %}
         <div class="menu-section">
             <div class="menu-section-title">ДОБЫЧА И ПЕРЕРАБОТКА</div>
-            
-            <div class="accordion-menu">
-                <div class="accordion-item">
-                    <div class="accordion-header {% if '/fishing/' in request.path or '/processing/' in request.path %}active{% endif %}" onclick="toggleAccordion(this)">
-                        <i class="bi bi-pick"></i>
-                        <span>Добыча и переработка</span>
-                        <i class="bi bi-chevron-down accordion-icon {% if '/fishing/' in request.path or '/processing/' in request.path %}rotated{% endif %}"></i>
-                    </div>
-                    
-                    <div class="accordion-content" style="{% if '/fishing/' in request.path or '/processing/' in request.path %}display: block;{% else %}display: none;{% endif %}">
-                        <div class="accordion-submenu">
-                            <a href="{% url 'fishing' %}" class="accordion-link {% if '/fishing/' in request.path %}active{% endif %}">
-                                <i class="bi bi-pick"></i>
-                                <span>Добыча ВБР</span>
-                            </a>
-                            <a href="{% url 'processing' %}" class="accordion-link {% if '/processing/' in request.path %}active{% endif %}">
-                                <i class="bi bi-gear"></i>
-                                <span>Переработка</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <a href="{% url 'fishing' %}" class="menu-item {% if request.path == '/fishing/' %}active{% endif %}">
+                <i class="bi bi-fish"></i>
+                <span>Добыча ВБР</span>
+            </a>
+            <a href="{% url 'processing' %}" class="menu-item {% if request.path == '/processing/' %}active{% endif %}">
+                <i class="bi bi-gear"></i>
+                <span>Переработка</span>
+            </a>
         </div>
         {% endif %}
 

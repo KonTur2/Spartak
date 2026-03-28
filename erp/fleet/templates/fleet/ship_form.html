@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Форма судна</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Функционал формы находится в разработке. В реальном проекте здесь будет форма Django с использованием crispy-forms.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Название судна</label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ ship.name|default:'' }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="imo" class="form-label">Номер ИМО</label>
+                        <input type="text" class="form-control" id="imo" name="imo" value="{{ ship.imo_number|default:'' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="type" class="form-label">Тип судна</label>
+                        <select class="form-select" id="type" name="type">
+                            <option value="fishing" {% if ship.type == 'fishing' %}selected{% endif %}>Промысловое</option>
+                            <option value="transport" {% if ship.type == 'transport' %}selected{% endif %}>Транспортное</option>
+                            <option value="passenger" {% if ship.type == 'passenger' %}selected{% endif %}>Пассажирское</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="current_location" class="form-label">Текущее местоположение</label>
+                        <input type="text" class="form-control" id="current_location" name="current_location" value="{{ ship.current_location|default:'' }}" placeholder="Начните вводить..." list="locationList">
+                        <datalist id="locationList">
+                            {% for location in location_choices %}
+                            <option value="{{ location }}">
+                            {% endfor %}
+                        </datalist>
+                        <small class="text-muted">Выберите из списка или введите своё</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="technical_condition" class="form-label">Техническое состояние</label>
+                        <textarea class="form-control" id="technical_condition" name="technical_condition" rows="3">{{ ship.technical_condition|default:'' }}</textarea>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{% if ship %}{% url 'fleet:ship_detail' ship.id %}{% else %}{% url 'fleet:fleet_dashboard' %}{% endif %}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
