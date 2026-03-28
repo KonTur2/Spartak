@@ -1,0 +1,18 @@
+<!-- templates/finance/base_finance.html (упрощенный) -->
+{% extends 'base.html' %}
+
+{% block title %}Финансовое управление - {{ block.super }}{% endblock %}
+
+{% block page_title %}Финансовое управление{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item"><a href="{% url 'finance:dashboard' %}">Финансы</a></li>
+{% block finance_breadcrumbs %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<!-- Убираем боковое меню, оставляем только контент -->
+<div class="finance-content">
+    {% block finance_content %}{% endblock %}
+</div>
+{% endblock %}

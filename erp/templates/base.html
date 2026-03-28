@@ -290,6 +290,126 @@
             color: #495057;
             margin-left: 8px;
         }
+
+        /* Стили для аккордеона */
+        .accordion-menu {
+            width: 100%;
+        }
+
+        .accordion-item {
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .accordion-header {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            cursor: pointer;
+            background-color: white;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+
+        .accordion-header:hover {
+            background-color: #f8f9fa;
+        }
+
+        .accordion-header.active {
+            background-color: #e8f4fd;
+            border-left-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .accordion-header i:first-child {
+            width: 24px;
+            font-size: 1.2rem;
+            margin-right: 12px;
+            color: var(--accent-color);
+        }
+
+        .accordion-header span {
+            flex: 1;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .accordion-icon {
+            margin-left: auto;
+            transition: transform 0.3s ease;
+            color: #6c757d;
+        }
+
+        .accordion-icon.rotated {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            display: none;
+            padding: 10px 0 15px 20px;
+            background-color: #fafbfc;
+        }
+
+        /* Подменю в аккордеоне */
+        .accordion-submenu {
+            margin-bottom: 15px;
+        }
+
+        .accordion-subheader {
+            display: flex;
+            align-items: center;
+            padding: 8px 15px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #6c757d;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .accordion-subheader i {
+            width: 20px;
+            font-size: 0.8rem;
+            margin-right: 8px;
+            color: #adb5bd;
+        }
+
+        .accordion-link {
+            display: flex;
+            align-items: center;
+            padding: 8px 15px 8px 35px;
+            color: #495057;
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-radius: 5px;
+            transition: all 0.2s;
+            margin: 2px 0;
+        }
+
+        .accordion-link i {
+            width: 18px;
+            font-size: 0.9rem;
+            margin-right: 8px;
+            color: #6c757d;
+        }
+
+        .accordion-link:hover {
+            background-color: #e9ecef;
+            color: var(--accent-color);
+            padding-left: 40px;
+        }
+
+        .accordion-link:hover i {
+            color: var(--accent-color);
+        }
+
+        .accordion-link.active {
+            background-color: #e8f4fd;
+            color: var(--accent-color);
+            font-weight: 500;
+        }
+
+        .accordion-link.active i {
+            color: var(--accent-color);
+        }
     </style>
 </head>
 <body>
@@ -368,14 +488,29 @@
         {% if user_role == 'director' or user_role == 'logistician' %}
         <div class="menu-section">
             <div class="menu-section-title">СБЫТ И ЛОГИСТИКА</div>
-            <a href="{% url 'sales' %}" class="menu-item {% if request.path == '/sales/' %}active{% endif %}">
-                <i class="bi bi-truck"></i>
-                <span>Сбыт</span>
-            </a>
-            <a href="{% url 'logistics' %}" class="menu-item {% if request.path == '/logistics/' %}active{% endif %}">
-                <i class="bi bi-map"></i>
-                <span>Логистика</span>
-            </a>
+            
+            <div class="accordion-menu">
+                <div class="accordion-item">
+                    <div class="accordion-header {% if '/sales/' in request.path or '/logistics/' in request.path %}active{% endif %}" onclick="toggleAccordion(this)">
+                        <i class="bi bi-truck"></i>
+                        <span>Сбыт и логистика</span>
+                        <i class="bi bi-chevron-down accordion-icon {% if '/sales/' in request.path or '/logistics/' in request.path %}rotated{% endif %}"></i>
+                    </div>
+                    
+                    <div class="accordion-content" style="{% if '/sales/' in request.path or '/logistics/' in request.path %}display: block;{% else %}display: none;{% endif %}">
+                        <div class="accordion-submenu">
+                            <a href="{% url 'sales' %}" class="accordion-link {% if '/sales/' in request.path %}active{% endif %}">
+                                <i class="bi bi-truck"></i>
+                                <span>Сбыт</span>
+                            </a>
+                            <a href="{% url 'logistics' %}" class="accordion-link {% if '/logistics/' in request.path %}active{% endif %}">
+                                <i class="bi bi-map"></i>
+                                <span>Логистика</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
 
@@ -383,14 +518,86 @@
         {% if user_role == 'director' or user_role == 'accountant' %}
         <div class="menu-section">
             <div class="menu-section-title">УПРАВЛЕНИЕ</div>
-            <a href="{% url 'finance' %}" class="menu-item {% if request.path == '/finance/' %}active{% endif %}">
-                <i class="bi bi-calculator"></i>
-                <span>Управление финансами</span>
-            </a>
-            <a href="{% url 'documents' %}" class="menu-item {% if request.path == '/documents/' %}active{% endif %}">
-                <i class="bi bi-file-text"></i>
-                <span>Документы</span>
-            </a>
+            
+            <div class="accordion-menu">
+                <div class="accordion-item">
+                    <div class="accordion-header {% if '/finance/' in request.path %}active{% endif %}" onclick="toggleAccordion(this)">
+                        <i class="bi bi-calculator"></i>
+                        <span>Управление финансами</span>
+                        <i class="bi bi-chevron-down accordion-icon {% if '/finance/' in request.path %}rotated{% endif %}"></i>
+                    </div>
+                    
+                    <div class="accordion-content" style="{% if '/finance/' in request.path %}display: block;{% else %}display: none;{% endif %}">
+                        <!-- Поступления и расходы -->
+                        <div class="accordion-submenu">
+                            <div class="accordion-subheader">
+                                <i class="bi bi-cash-stack"></i>
+                                <span>Денежные средства</span>
+                            </div>
+                            <a href="{% url 'finance:payment_incoming' %}" class="accordion-link {% if '/finance/payments/incoming/' in request.path %}active{% endif %}">
+                                <i class="bi bi-arrow-down-circle"></i>
+                                <span>Поступления</span>
+                            </a>
+                            <a href="{% url 'finance:payment_outgoing' %}" class="accordion-link {% if '/finance/payments/outgoing/' in request.path %}active{% endif %}">
+                                <i class="bi bi-arrow-up-circle"></i>
+                                <span>Расходы</span>
+                            </a>
+                        </div>
+
+                        <!-- Контрагенты и договоры -->
+                        <div class="accordion-submenu">
+                            <div class="accordion-subheader">
+                                <i class="bi bi-people"></i>
+                                <span>Контрагенты</span>
+                            </div>
+                            <a href="{% url 'finance:counterparty_list' %}" class="accordion-link {% if '/finance/counterparties/' in request.path %}active{% endif %}">
+                                <i class="bi bi-building"></i>
+                                <span>Контрагенты</span>
+                            </a>
+                            <a href="{% url 'finance:contract_list' %}" class="accordion-link {% if '/finance/contracts/' in request.path %}active{% endif %}">
+                                <i class="bi bi-file-text"></i>
+                                <span>Договоры</span>
+                            </a>
+                            <a href="{% url 'finance:invoice_list' %}" class="accordion-link {% if '/finance/invoices/' in request.path %}active{% endif %}">
+                                <i class="bi bi-receipt"></i>
+                                <span>Счета</span>
+                            </a>
+                        </div>
+
+                        <!-- Сотрудники и зарплата -->
+                        <div class="accordion-submenu">
+                            <div class="accordion-subheader">
+                                <i class="bi bi-person-badge"></i>
+                                <span>Кадры</span>
+                            </div>
+                            <a href="{% url 'finance:employee_list' %}" class="accordion-link {% if '/finance/employees/' in request.path %}active{% endif %}">
+                                <i class="bi bi-people"></i>
+                                <span>Сотрудники</span>
+                            </a>
+                            <a href="#" class="accordion-link">
+                                <i class="bi bi-calculator"></i>
+                                <span>Начисления</span>
+                            </a>
+                        </div>
+
+                        <!-- Документы -->
+                        <div class="accordion-submenu">
+                            <div class="accordion-subheader">
+                                <i class="bi bi-folder"></i>
+                                <span>Документы</span>
+                            </div>
+                            <a href="#" class="accordion-link">
+                                <i class="bi bi-file-earmark-text"></i>
+                                <span>Все документы</span>
+                            </a>
+                            <a href="#" class="accordion-link">
+                                <i class="bi bi-file-earmark-pdf"></i>
+                                <span>Акты</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
 
@@ -398,14 +605,29 @@
         {% if user_role == 'director' or user_role == 'fleet_manager' or user_role == 'crew' %}
         <div class="menu-section">
             <div class="menu-section-title">ФЛОТ И СУДОРЕМОНТ</div>
-            <a href="{% url 'fleet' %}" class="menu-item {% if request.path == '/fleet/' %}active{% endif %}">
-                <i class="bi bi-ship"></i>
-                <span>Управление флотом</span>
-            </a>
-            <a href="{% url 'shiprepair' %}" class="menu-item {% if request.path == '/shiprepair/' %}active{% endif %}">
-                <i class="bi bi-tools"></i>
-                <span>Судоремонт</span>
-            </a>
+            
+            <div class="accordion-menu">
+                <div class="accordion-item">
+                    <div class="accordion-header {% if '/fleet/' in request.path or '/shiprepair/' in request.path %}active{% endif %}" onclick="toggleAccordion(this)">
+                        <i class="bi bi-ship"></i>
+                        <span>Флот и судоремонт</span>
+                        <i class="bi bi-chevron-down accordion-icon {% if '/fleet/' in request.path or '/shiprepair/' in request.path %}rotated{% endif %}"></i>
+                    </div>
+                    
+                    <div class="accordion-content" style="{% if '/fleet/' in request.path or '/shiprepair/' in request.path %}display: block;{% else %}display: none;{% endif %}">
+                        <div class="accordion-submenu">
+                            <a href="{% url 'fleet' %}" class="accordion-link {% if '/fleet/' in request.path %}active{% endif %}">
+                                <i class="bi bi-ship"></i>
+                                <span>Управление флотом</span>
+                            </a>
+                            <a href="{% url 'shiprepair' %}" class="accordion-link {% if '/shiprepair/' in request.path %}active{% endif %}">
+                                <i class="bi bi-tools"></i>
+                                <span>Судоремонт</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
 
@@ -480,3 +702,53 @@
     </script>
 </body>
 </html>
+
+<script>
+    // Функция для переключения аккордеона
+    function toggleAccordion(header) {
+        // Закрываем все другие аккордеоны (опционально)
+        const allHeaders = document.querySelectorAll('.accordion-header');
+        allHeaders.forEach(h => {
+            if (h !== header && h.classList.contains('active')) {
+                h.classList.remove('active');
+                const icon = h.querySelector('.accordion-icon');
+                if (icon) icon.classList.remove('rotated');
+                
+                const content = h.nextElementSibling;
+                if (content && content.classList.contains('accordion-content')) {
+                    content.style.display = 'none';
+                }
+            }
+        });
+        
+        // Переключаем текущий
+        header.classList.toggle('active');
+        const icon = header.querySelector('.accordion-icon');
+        if (icon) icon.classList.toggle('rotated');
+        
+        const content = header.nextElementSibling;
+        if (content && content.classList.contains('accordion-content')) {
+            if (content.style.display === 'none' || !content.style.display) {
+                content.style.display = 'block';
+            } else {
+                content.style.display = 'none';
+            }
+        }
+    }
+
+    // При загрузке страницы проверяем, нужно ли открыть аккордеон
+    document.addEventListener('DOMContentLoaded', function() {
+        // Если мы находимся в любом разделе finance, открываем аккордеон
+        if (window.location.pathname.includes('/finance/')) {
+            const accordionHeader = document.querySelector('.accordion-header');
+            const accordionContent = document.getElementById('finance-accordion');
+            
+            if (accordionHeader && accordionContent) {
+                accordionHeader.classList.add('active');
+                const icon = accordionHeader.querySelector('.accordion-icon');
+                if (icon) icon.classList.add('rotated');
+                accordionContent.style.display = 'block';
+            }
+        }
+    });
+</script>
