@@ -34,6 +34,53 @@ class Ship(models.Model):
     def __str__(self):
         return f"{self.name} ({self.imo_number})"
 
+    def get_actual_status(self, date=None):
+        """
+        Возвращает актуальный статус судна на указанную дату (по умолчанию сегодня).
+        Приоритет:
+        1. Если судно выведено из эксплуатации (ручной статус) -> 'out_of_service'
+        2. Если есть активный ремонт (статус 'in_progress' и даты включают date) -> 'under_repair'
+        3. Если есть активный рейс (не завершён и даты включают date) -> 'at_sea'
+        4. Иначе -> 'in_port'
+        """
+        from django.utils import timezone
+        if date is None:
+            date = timezone.now().date()
+        # Если судно выведено из эксплуатации (ручной статус), возвращаем его
+        if self.status == 'out_of_service':
+            return 'out_of_service'
+        # Проверяем активный ремонт
+        active_maintenance = self.maintenances.filter(
+            status='in_progress',
+            start_date__lte=date,
+            end_date__gte=date
+        ).exists()
+        if active_maintenance:
+            return 'under_repair'
+        # Проверяем активный рейс
+        active_voyage = self.voyages.filter(
+            is_completed=False,
+            start_date__lte=date,
+            end_date__gte=date
+        ).exists()
+        if active_voyage:
+            return 'at_sea'
+        # Иначе в порту
+        return 'in_port'
+
+    @property
+    def actual_status(self):
+        """Свойство для получения актуального статуса на текущую дату."""
+        return self.get_actual_status()
+
+    def get_actual_status_display(self, date=None):
+        """Возвращает отображаемое название актуального статуса."""
+        status = self.get_actual_status(date)
+        for key, label in self.STATUS_CHOICES:
+            if key == status:
+                return label
+        return status
+
 
 class CrewMember(models.Model):
     RANK_CHOICES = [
@@ -94,6 +141,54 @@ class Voyage(models.Model):
             delta = self.end_date - self.start_date
             return delta.days
         return None
+
+    def clean(self):
+        """
+        Валидация пересечения дат с другими рейсами и ремонтами.
+        Вызывается в формах перед сохранением.
+        """
+        from django.core.exceptions import ValidationError
+        from django.utils import timezone
+
+        # Если рейс завершён, не проверяем пересечения (можно пропустить)
+        if self.is_completed:
+            return
+
+        # Определяем интервал рейса
+        start = self.start_date
+        end = self.end_date if self.end_date else timezone.now() + timezone.timedelta(days=365)  # если end_date не указан, считаем бесконечным
+
+        # Проверка пересечения с другими рейсами этого судна (исключая текущий, если он уже существует)
+        overlapping_voyages = Voyage.objects.filter(
+            ship=self.ship,
+            is_completed=False,
+            start_date__lt=end,
+            end_date__gt=start
+        ).exclude(pk=self.pk)
+        if overlapping_voyages.exists():
+            raise ValidationError(
+                f'Судно "{self.ship.name}" уже находится в рейсе в указанный период. '
+                f'Пересекается с рейсом(ами): {", ".join(str(v) for v in overlapping_voyages[:3])}.'
+            )
+
+        # Проверка пересечения с ремонтами этого судна (статус 'in_progress' или 'planned' с датами, которые пересекаются)
+        overlapping_maintenances = Maintenance.objects.filter(
+            ship=self.ship,
+            status__in=['in_progress', 'planned'],
+            start_date__lt=end,
+            end_date__gt=start
+        )
+        if overlapping_maintenances.exists():
+            raise ValidationError(
+                f'Судно "{self.ship.name}" находится на ремонте в указанный период. '
+                f'Пересекается с ремонтом(ами): {", ".join(str(m) for m in overlapping_maintenances[:3])}.'
+            )
+
+        # Дополнительная проверка: если судно выведено из эксплуатации, нельзя создавать рейс
+        if self.ship.status == 'out_of_service':
+            raise ValidationError(
+                f'Судно "{self.ship.name}" выведено из эксплуатации. Создание рейса невозможно.'
+            )
 
     def save(self, *args, **kwargs):
         from django.utils import timezone
@@ -206,6 +301,62 @@ class Maintenance(models.Model):
 
     def __str__(self):
         return f"{self.get_maintenance_type_display()} {self.ship.name} ({self.start_date})"
+
+    def clean(self):
+        """
+        Валидация пересечения дат с рейсами и другими ремонтами.
+        Учитывает аварийный ремонт (emergency) - разрешает создание, но требует досрочного завершения рейса.
+        """
+        from django.core.exceptions import ValidationError
+        from django.utils import timezone
+
+        # Определяем интервал ремонта
+        start = self.start_date
+        end = self.end_date if self.end_date else timezone.now().date() + timezone.timedelta(days=365)
+
+        # Проверка пересечения с другими ремонтами этого судна (исключая текущий)
+        overlapping_maintenances = Maintenance.objects.filter(
+            ship=self.ship,
+            status__in=['in_progress', 'planned'],
+            start_date__lt=end,
+            end_date__gt=start
+        ).exclude(pk=self.pk)
+        if overlapping_maintenances.exists():
+            raise ValidationError(
+                f'Судно "{self.ship.name}" уже имеет запланированный или выполняющийся ремонт в указанный период. '
+                f'Пересекается с ремонтом(ами): {", ".join(str(m) for m in overlapping_maintenances[:3])}.'
+            )
+
+        # Проверка пересечения с рейсами этого судна
+        overlapping_voyages = Voyage.objects.filter(
+            ship=self.ship,
+            is_completed=False,
+            start_date__lt=end,
+            end_date__gt=start
+        )
+        if overlapping_voyages.exists():
+            # Если это аварийный ремонт, разрешаем, но предупреждаем о необходимости досрочного завершения рейса
+            if self.maintenance_type == 'emergency':
+                # Можно добавить логику для автоматического завершения рейса или предупреждения
+                # Пока просто предупреждаем через сообщение (не блокируем сохранение)
+                # Для этого мы не вызываем ValidationError, но можно добавить поле non_field_errors
+                # Однако clean должен либо пройти, либо вызвать ValidationError.
+                # Поскольку аварийный ремонт разрешён, мы пропускаем ошибку, но нужно уведомить пользователя.
+                # Лучше добавить предупреждение через messages в view, а здесь просто пропустить.
+                pass
+            else:
+                raise ValidationError(
+                    f'Судно "{self.ship.name}" находится в рейсе в указанный период. '
+                    f'Пересекается с рейсом(ами): {", ".join(str(v) for v in overlapping_voyages[:3])}. '
+                    'Для аварийного ремонта это допустимо, но требуется досрочное завершение рейса.'
+                )
+
+        # Дополнительная проверка: если судно выведено из эксплуатации, ремонт возможен только аварийный?
+        if self.ship.status == 'out_of_service' and self.maintenance_type != 'emergency':
+            raise ValidationError(
+                f'Судно "{self.ship.name}" выведено из эксплуатации. '
+                'Ремонт возможен только аварийный (emergency).'
+            )
 
     def save(self, *args, **kwargs):
         from django.utils import timezone

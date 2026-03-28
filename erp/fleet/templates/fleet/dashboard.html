@@ -213,6 +213,25 @@
                 </div>
             </div>
         </div>
+        <!-- Отчеты -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Отчеты</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{% url 'fleet:maintenance_report' %}" class="btn btn-outline-info">
+                        <i class="bi bi-calendar-check"></i> График ремонтов
+                    </a>
+                    <a href="{% url 'fleet:performance_report' %}" class="btn btn-outline-success">
+                        <i class="bi bi-graph-up"></i> Наработка флота
+                    </a>
+                    <a href="{% url 'fleet:crew_manifest' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-file-text"></i> Посадочная ведомость
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

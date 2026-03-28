@@ -15,6 +15,8 @@ test_users = [
     {'username': 'logistician', 'password': 'password123', 'email': 'logistician@spartak.ru', 'role': 'logistician'},
     {'username': 'crew', 'password': 'password123', 'email': 'crew@spartak.ru', 'role': 'crew'},
     {'username': 'fleet_manager', 'password': 'password123', 'email': 'fleet_manager@spartak.ru', 'role': 'fleet_manager'},
+    {'username': 'dispatcher', 'password': 'dispatcher123', 'email': 'dispatcher@spartak.ru', 'role': 'dispatcher'},
+    {'username': 'engineer', 'password': 'engineer123', 'email': 'engineer@spartak.ru', 'role': 'engineer'},
 ]
 
 def create_users():

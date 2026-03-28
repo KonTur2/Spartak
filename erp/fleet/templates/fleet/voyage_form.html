@@ -25,13 +25,13 @@
                         <label for="ship" class="form-label">Судно</label>
                         <select class="form-select" id="ship" name="ship">
                             {% if ship %}
-                                <option value="{{ ship.id }}" selected>{{ ship.name }}</option>
+                                <option value="{{ ship.id }}" selected>{{ ship.name }} ({{ ship.get_type_display }}) - {{ ship.get_actual_status_display }}</option>
                             {% else %}
                                 <option value="">Выберите судно</option>
                             {% endif %}
                             {% for s in ships %}
                                 {% if not ship or s.id != ship.id %}
-                                    <option value="{{ s.id }}">{{ s.name }} ({{ s.get_type_display }}) - {{ s.get_status_display }}</option>
+                                    <option value="{{ s.id }}">{{ s.name }} ({{ s.get_type_display }}) - {{ s.get_actual_status_display }}</option>
                                 {% endif %}
                             {% endfor %}
                         </select>
