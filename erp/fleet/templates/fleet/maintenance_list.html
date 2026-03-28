@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Судоремонт{% endblock %}
+
+{% block page_title %}Судоремонт{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item active">Судоремонт</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Список ремонтов и ТО</h5>
+        <div>
+            {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+            <a href="{% url 'fleet:contractor_list' %}" class="btn btn-sm btn-outline-primary me-2">
+                <i class="bi bi-building"></i> Контрагенты
+            </a>
+            {% endif %}
+            <a href="{% url 'fleet:maintenance_create' %}" class="btn btn-sm btn-success">
+                <i class="bi bi-tools"></i> Подать заявку на ремонт
+            </a>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Судно</th>
+                        <th>Тип ремонта</th>
+                        <th>Статус</th>
+                        <th>Дата начала</th>
+                        <th>Дата окончания</th>
+                        <th>Стоимость (руб.)</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for maintenance in maintenances %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'fleet:ship_detail' maintenance.ship.id %}">{{ maintenance.ship.name }}</a>
+                        </td>
+                        <td>{{ maintenance.get_maintenance_type_display }}</td>
+                        <td>
+                            {% if maintenance.status == 'in_progress' %}
+                                <span class="badge bg-warning">В работе</span>
+                            {% elif maintenance.status == 'planned' %}
+                                <span class="badge bg-info">Запланировано</span>
+                            {% elif maintenance.status == 'completed' %}
+                                <span class="badge bg-success">Завершено</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ maintenance.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ maintenance.start_date|date:"d.m.Y" }}</td>
+                        <td>{{ maintenance.end_date|date:"d.m.Y"|default:"—" }}</td>
+                        <td>{{ maintenance.cost|floatformat:2 }}</td>
+                        <td>
+                            <a href="{% url 'fleet:maintenance_detail' maintenance.id %}" class="btn btn-sm btn-outline-primary" title="Просмотр">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                            <a href="{% url 'fleet:maintenance_edit' maintenance.id %}" class="btn btn-sm btn-outline-secondary" title="Редактировать">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">Нет данных о ремонтах</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

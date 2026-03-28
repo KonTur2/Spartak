@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'fleet:ship_detail' voyage.ship.id %}">{{ voyage.ship.name }}</a></li>
+    <li class="breadcrumb-item active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Завершение рейса</h5>
+            </div>
+            <div class="card-body">
+                <p>Рейс судна <strong>{{ voyage.ship.name }}</strong> начат {{ voyage.start_date|date:"d.m.Y H:i" }}.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="actual_catch" class="form-label">Фактическая добыча (тонны)</label>
+                        <input type="number" step="0.1" class="form-control" id="actual_catch" name="actual_catch" value="{{ voyage.actual_catch|default:0 }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="end_date" class="form-label">Дата возвращения</label>
+                        <input type="datetime-local" class="form-control" id="end_date" name="end_date" value="{{ voyage.end_date|date:'Y-m-d\TH:i'|default:'' }}">
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'fleet:ship_detail' voyage.ship.id %}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-success">Завершить рейс</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

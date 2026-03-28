@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item active">{{ page_title }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Создание рейса</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Форма создания рейса. В реальном проекте будет реализована с помощью Django Forms.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="ship" class="form-label">Судно</label>
+                        <select class="form-select" id="ship" name="ship">
+                            {% if ship %}
+                                <option value="{{ ship.id }}" selected>{{ ship.name }} ({{ ship.get_type_display }}) - {{ ship.get_actual_status_display }}</option>
+                            {% else %}
+                                <option value="">Выберите судно</option>
+                            {% endif %}
+                            {% for s in ships %}
+                                {% if not ship or s.id != ship.id %}
+                                    <option value="{{ s.id }}">{{ s.name }} ({{ s.get_type_display }}) - {{ s.get_actual_status_display }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="start_date" class="form-label">Дата и время убытия</label>
+                        <input type="datetime-local" class="form-control" id="start_date" name="start_date"
+                               value="{{ request.POST.start_date|default:'' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="end_date" class="form-label">Дата и время прибытия (опционально)</label>
+                        <input type="datetime-local" class="form-control" id="end_date" name="end_date"
+                               value="{{ request.POST.end_date|default:'' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="crew" class="form-label">Экипаж (можно выбрать несколько)</label>
+                        <input type="text" class="form-control mb-2" id="crewSearch" placeholder="Поиск по фамилии или должности..." autocomplete="off">
+                        <select class="form-select" id="crew" name="crew" multiple size="8">
+                            {% for member in crew_members %}
+                                <option value="{{ member.id }}" {% if member.id in selected_crew_ids %}selected{% endif %}>{{ member.user.get_full_name }} ({{ member.get_rank_display }})</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Удерживайте Ctrl (Cmd на Mac) для выбора нескольких. Используйте поиск для фильтрации.</small>
+                        <div class="mt-2">
+                            <strong>Выбранные члены экипажа:</strong>
+                            <div id="selectedCrewList" class="d-flex flex-wrap gap-2 mt-2">
+                                <!-- Здесь будут отображаться выбранные -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="fishing_area" class="form-label">Район промысла</label>
+                        <select class="form-select" id="fishing_area" name="fishing_area">
+                            <option value="okhotsk">Охотское море</option>
+                            <option value="bering">Берингово море</option>
+                            <option value="japan">Японское море</option>
+                            <option value="pacific">Тихий океан</option>
+                            <option value="other">Другое</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="catch_plan" class="form-label">План добычи (тонны)</label>
+                        <input type="number" step="0.1" class="form-control" id="catch_plan" name="catch_plan" value="0">
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <a href="{% url 'fleet:fleet_dashboard' %}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-primary">Создать рейс</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('crewSearch');
+    const select = document.getElementById('crew');
+    const options = Array.from(select.options);
+    const selectedList = document.getElementById('selectedCrewList');
+
+    // Функция обновления списка выбранных
+    function updateSelectedList() {
+        selectedList.innerHTML = '';
+        const selectedOptions = Array.from(select.selectedOptions);
+        selectedOptions.forEach(option => {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-primary d-flex align-items-center gap-1';
+            badge.innerHTML = `
+                ${option.text}
+                <button type="button" class="btn-close btn-close-white" style="font-size: 0.6rem;" data-value="${option.value}"></button>
+            `;
+            selectedList.appendChild(badge);
+        });
+        // Добавляем обработчики для кнопок удаления
+        selectedList.querySelectorAll('.btn-close').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const value = this.getAttribute('data-value');
+                const option = select.querySelector(`option[value="${value}"]`);
+                if (option) {
+                    option.selected = false;
+                    updateSelectedList();
+                }
+            });
+        });
+    }
+
+    // Инициализация списка выбранных
+    updateSelectedList();
+
+    // Обработчик изменения выбора в select
+    select.addEventListener('change', updateSelectedList);
+
+    // Фильтрация опций
+    function filterOptions() {
+        const query = searchInput.value.toLowerCase();
+        options.forEach(option => {
+            const text = option.text.toLowerCase();
+            if (text.includes(query)) {
+                option.style.display = '';
+            } else {
+                option.style.display = 'none';
+            }
+        });
+    }
+
+    searchInput.addEventListener('input', filterOptions);
+});
+</script>
+{% endblock %}

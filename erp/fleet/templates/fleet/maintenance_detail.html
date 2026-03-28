@@ -1,0 +1,223 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Ремонт {{ maintenance.ship.name }} от {{ maintenance.start_date|date:"d.m.Y" }}{% endblock %}
+
+{% block page_title %}Ремонт {{ maintenance.ship.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+<li class="breadcrumb-item"><a href="{% url 'fleet:maintenance_list' %}">Судоремонт</a></li>
+<li class="breadcrumb-item active">{{ maintenance.ship.name }} ({{ maintenance.start_date|date:"d.m.Y" }})</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <!-- Карточка с деталями ремонта -->
+        <div class="card">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Детали ремонта</h5>
+                <div>
+                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                    <a href="{% url 'fleet:maintenance_edit' maintenance.id %}" class="btn btn-warning btn-sm">
+                        <i class="bi bi-pencil"></i> Редактировать
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'fleet:maintenance_list' %}" class="btn btn-secondary btn-sm">
+                        <i class="bi bi-arrow-left"></i> Назад к списку
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm">
+                    <tr>
+                        <th width="30%">Судно:</th>
+                        <td>
+                            <a href="{% url 'fleet:ship_detail' maintenance.ship.id %}">{{ maintenance.ship.name }}</a>
+                            ({{ maintenance.ship.imo_number }})
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Тип ремонта:</th>
+                        <td>
+                            <span class="badge 
+                                {% if maintenance.maintenance_type == 'emergency' %}bg-danger
+                                {% elif maintenance.maintenance_type == 'planned' %}bg-info
+                                {% else %}bg-secondary{% endif %}">
+                                {{ maintenance.get_maintenance_type_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Статус:</th>
+                        <td>
+                            <span class="badge 
+                                {% if maintenance.status == 'in_progress' %}bg-warning
+                                {% elif maintenance.status == 'completed' %}bg-success
+                                {% else %}bg-secondary{% endif %}">
+                                {{ maintenance.get_status_display }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Дата начала:</th>
+                        <td>{{ maintenance.start_date|date:"d.m.Y" }}</td>
+                    </tr>
+                    <tr>
+                        <th>Дата окончания:</th>
+                        <td>
+                            {% if maintenance.end_date %}
+                                {{ maintenance.end_date|date:"d.m.Y" }}
+                            {% else %}
+                                <span class="text-muted">— (ещё не завершён)</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Стоимость (руб.):</th>
+                        <td>
+                            {% if maintenance.cost %}
+                                <strong>{{ maintenance.cost|floatformat:2 }}</strong>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Подрядчик:</th>
+                        <td>
+                            {% if maintenance.contractor %}
+                                {{ maintenance.contractor.name }}
+                                {% if maintenance.contractor.contact_person %}
+                                    <br><small>Контакт: {{ maintenance.contractor.contact_person }}</small>
+                                {% endif %}
+                            {% elif maintenance.contractor_text %}
+                                {{ maintenance.contractor_text }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Документы:</th>
+                        <td>
+                            {% if maintenance.documents %}
+                                <a href="{{ maintenance.documents.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-file-earmark-text"></i> Скачать
+                                </a>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- Описание работ -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Описание работ</h5>
+            </div>
+            <div class="card-body">
+                {% if maintenance.description %}
+                    <p>{{ maintenance.description|linebreaks }}</p>
+                {% else %}
+                    <p class="text-muted">Описание отсутствует.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <!-- Действия -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Действия</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                        {% if maintenance.status != 'completed' %}
+                            <a href="{% url 'fleet:maintenance_edit' maintenance.id %}" class="btn btn-warning">
+                                <i class="bi bi-pencil"></i> Редактировать
+                            </a>
+                            <a href="#" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeModal">
+                                <i class="bi bi-check-circle"></i> Отметить как завершённый
+                            </a>
+                        {% endif %}
+                        <a href="{% url 'fleet:maintenance_create_for_ship' maintenance.ship.id %}" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Добавить новый ремонт для этого судна
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'fleet:ship_detail' maintenance.ship.id %}" class="btn btn-outline-primary">
+                        <i class="bi bi-ship"></i> Перейти к судну
+                    </a>
+                    <a href="{% url 'fleet:maintenance_list' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-list"></i> Все ремонты
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Информация о судне -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Информация о судне</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Тип:</strong> {{ maintenance.ship.get_type_display }}</p>
+                <p><strong>Статус судна:</strong>
+                    {% if maintenance.ship.status == 'at_sea' %}
+                        <span class="badge bg-success">В море</span>
+                    {% elif maintenance.ship.status == 'in_port' %}
+                        <span class="badge bg-warning">В порту</span>
+                    {% elif maintenance.ship.status == 'under_repair' %}
+                        <span class="badge bg-danger">На ремонте</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ maintenance.ship.get_status_display }}</span>
+                    {% endif %}
+                </p>
+                <p><strong>Техническое состояние:</strong> {{ maintenance.ship.technical_condition|default:"—"|truncatechars:100 }}</p>
+                <a href="{% url 'fleet:ship_detail' maintenance.ship.id %}" class="btn btn-sm btn-outline-primary mt-2">Подробнее о судне</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для завершения ремонта -->
+{% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+<div class="modal fade" id="completeModal" tabindex="-1" aria-labelledby="completeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="completeModalLabel">Завершение ремонта</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите отметить ремонт как завершённый?</p>
+                <p>После этого статус изменится на "Завершено", и будет установлена дата окончания (сегодня).</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <form method="post" action="{% url 'fleet:maintenance_complete' maintenance.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-success">Подтвердить завершение</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+    // Инициализация тултипов
+    document.addEventListener('DOMContentLoaded', function () {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}
