@@ -1,0 +1,150 @@
+<!-- templates/finance/counterparty_list.html -->
+{% extends 'finance/base_finance.html' %}
+
+{% block finance_breadcrumbs %}
+<li class="breadcrumb-item active">Контрагенты</li>
+{% endblock %}
+
+{% block finance_content %}
+<div class="card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-building"></i> Контрагенты</h5>
+        <a href="{% url 'finance:counterparty_create' %}" class="btn btn-sm btn-light">
+            <i class="bi bi-plus-circle"></i> Добавить контрагента
+        </a>
+    </div>
+    
+    <div class="card-body">
+        <!-- Форма поиска и фильтры -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <form method="get" class="d-flex">
+                    <input type="text" name="search" class="form-control me-2" placeholder="Поиск по названию..." value="{{ request.GET.search|default:'' }}">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="bi bi-search"></i> Найти
+                    </button>
+                </form>
+            </div>
+            <div class="col-md-4">
+                <select class="form-control" onchange="window.location.href=this.value">
+                    <option value="{% url 'finance:counterparty_list' %}">Все типы</option>
+                    <option value="{% url 'finance:counterparty_list' %}?type=client" {% if filter_type == 'client' %}selected{% endif %}>Клиенты</option>
+                    <option value="{% url 'finance:counterparty_list' %}?type=supplier" {% if filter_type == 'supplier' %}selected{% endif %}>Поставщики</option>
+                    <option value="{% url 'finance:counterparty_list' %}?type=both" {% if filter_type == 'both' %}selected{% endif %}>Клиенты и поставщики</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Статистика -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6>Всего</h6>
+                        <h3>{{ total }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6>Клиенты</h6>
+                        <h3>{{ client_count|default:"0" }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h6>Поставщики</h6>
+                        <h3>{{ supplier_count|default:"0" }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-secondary text-white">
+                    <div class="card-body">
+                        <h6>Активные</h6>
+                        <h3>{{ active_count|default:"0" }}</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Таблица контрагентов -->
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                        <th>ИНН/КПП</th>
+                        <th>Тип</th>
+                        <th>Телефон</th>
+                        <th>Email</th>
+                        <th>Статус</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for counterparty in counterparties %}
+                    <tr>
+                        <td>
+                            <strong>{{ counterparty.name }}</strong>
+                            {% if counterparty.short_name %}
+                                <br><small class="text-muted">{{ counterparty.short_name }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ counterparty.inn }}
+                            {% if counterparty.kpp %}/ {{ counterparty.kpp }}{% endif %}
+                        </td>
+                        <td>
+                            {% if counterparty.counterparty_type == 'client' %}
+                                <span class="badge bg-success">Клиент</span>
+                            {% elif counterparty.counterparty_type == 'supplier' %}
+                                <span class="badge bg-warning">Поставщик</span>
+                            {% elif counterparty.counterparty_type == 'both' %}
+                                <span class="badge bg-info">Клиент/Поставщик</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ counterparty.phone|default:"—" }}</td>
+                        <td>
+                            {% if counterparty.email %}
+                                <a href="mailto:{{ counterparty.email }}">{{ counterparty.email }}</a>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if counterparty.is_active %}
+                                <span class="badge bg-success">Активен</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Неактивен</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'finance:counterparty_detail' counterparty.pk %}" class="btn btn-sm btn-info" title="Просмотр">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            <a href="{% url 'finance:counterparty_edit' counterparty.pk %}" class="btn btn-sm btn-warning" title="Редактировать">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <i class="bi bi-building" style="font-size: 3rem; color: #ccc;"></i>
+                            <p class="mt-2">Нет контрагентов</p>
+                            <a href="{% url 'finance:counterparty_create' %}" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> Добавить первого контрагента
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -9,4 +9,5 @@ urlpatterns = [
     path('logout/', accounts_views.logout_view, name='logout'),
     path('profile/', accounts_views.profile_view, name='profile'),
     path('', include('erp_app.urls')), 
+    path('finance/', include('finance_app.urls')),
 ]

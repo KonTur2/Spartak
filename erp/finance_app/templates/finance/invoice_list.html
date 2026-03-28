@@ -1,0 +1,93 @@
+<!-- templates/finance/invoice_list.html -->
+{% extends 'finance/base_finance.html' %}
+
+{% block finance_breadcrumbs %}
+<li class="breadcrumb-item active">Счета</li>
+{% endblock %}
+
+{% block finance_content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h5 class="mb-0"><i class="bi bi-file-text"></i> Счета</h5>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h6>Всего счетов</h6>
+                        <h3>{{ invoices.count }}</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h6>Общая сумма</h6>
+                        <h3>{{ total_amount|floatformat:2 }} ₽</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-danger text-white">
+                    <div class="card-body">
+                        <h6>Не оплачено</h6>
+                        <h3>{{ total_unpaid|floatformat:2 }} ₽</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Номер</th>
+                    <th>Дата</th>
+                    <th>Контрагент</th>
+                    <th>Сумма</th>
+                    <th>Оплачено</th>
+                    <th>Долг</th>
+                    <th>Статус</th>
+                    <th>Срок</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for invoice in invoices %}
+                <tr>
+                    <td>{{ invoice.number }}</td>
+                    <td>{{ invoice.date|date:"d.m.Y" }}</td>
+                    <td>{{ invoice.counterparty.name|truncatechars:30 }}</td>
+                    <td>{{ invoice.amount|floatformat:2 }} ₽</td>
+                    <td>{{ invoice.paid_amount|floatformat:2 }} ₽</td>
+                    <td class="{% if invoice.remaining_amount > 0 %}text-danger{% else %}text-success{% endif %}">
+                        <strong>{{ invoice.remaining_amount|floatformat:2 }} ₽</strong>
+                    </td>
+                    <td>
+                        {% if invoice.status == 'paid' %}
+                            <span class="badge bg-success">Оплачен</span>
+                        {% elif invoice.status == 'overdue' %}
+                            <span class="badge bg-danger">Просрочен</span>
+                        {% elif invoice.status == 'sent' %}
+                            <span class="badge bg-warning">Отправлен</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ invoice.get_status_display }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if invoice.due_date < today and invoice.status != 'paid' %}
+                            <span class="text-danger">{{ invoice.due_date|date:"d.m.Y" }}</span>
+                        {% else %}
+                            {{ invoice.due_date|date:"d.m.Y" }}
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="text-center">Нет счетов</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
