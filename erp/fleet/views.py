@@ -1,36 +1,192 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Count, Sum, Q, Case, When, IntegerField
 from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 
 from accounts.decorators import role_required
-from .models import Ship, CrewMember, Voyage, Maintenance, Contractor
+from .models import Notification, Ship, CrewMember, Voyage, Maintenance, Contractor
+from .services import (
+    annotate_maintenance_health_priority,
+    annotate_voyage_health_priority,
+    enrich_ship_for_operations,
+    filter_maintenances_by_health,
+    filter_voyages_by_health,
+    get_system_problem_states,
+    ship_readiness_service,
+    validate_crew_for_voyage_period,
+)
+
+
+OPEN_VOYAGE_DELTA = timezone.timedelta(days=3650)
+OPEN_MAINTENANCE_DELTA = timezone.timedelta(days=3650)
+
+def _validation_messages(error):
+    if hasattr(error, 'error_dict'):
+        return [str(item) for errors in error.error_dict.values() for item in errors]
+    if hasattr(error, 'messages'):
+        return [str(message) for message in error.messages]
+    return [str(error)]
+
+
+def _open_voyage_end(end_date):
+    return end_date or (timezone.now() + OPEN_VOYAGE_DELTA)
+
+
+def _open_maintenance_end(end_date):
+    return end_date or (timezone.now().date() + OPEN_MAINTENANCE_DELTA)
+
+
+def _find_overlapping_crew(crew_queryset, start_date, end_date, exclude_voyage_id=None):
+    overlapping_crew = []
+    effective_end = _open_voyage_end(end_date)
+    for crew_member in crew_queryset:
+        overlapping_voyages = Voyage.objects.filter(
+            crew=crew_member,
+            is_completed=False,
+            start_date__lt=effective_end,
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=start_date)
+        )
+        if exclude_voyage_id:
+            overlapping_voyages = overlapping_voyages.exclude(id=exclude_voyage_id)
+        if overlapping_voyages.exists():
+            overlapping_crew.append(crew_member)
+    return overlapping_crew
+
+
+def _find_overlapping_voyages_for_maintenance(ship, start_date, end_date, exclude_maintenance_id=None):
+    effective_end = _open_maintenance_end(end_date)
+    overlapping_voyages = Voyage.objects.filter(
+        ship=ship,
+        is_completed=False,
+        start_date__date__lt=effective_end,
+    ).filter(
+        Q(end_date__isnull=True) | Q(end_date__date__gt=start_date)
+    )
+    if exclude_maintenance_id:
+        overlapping_voyages = overlapping_voyages.exclude(id=exclude_maintenance_id)
+    return overlapping_voyages
 
 
 @login_required
 @role_required(['director', 'fleet_manager', 'crew', 'dispatcher', 'engineer'])
 def fleet_dashboard(request):
     """Главная страница модуля управления флотом"""
-    ships = Ship.objects.all().order_by('status', 'name')
-    ships_at_sea = Ship.objects.filter(status='at_sea').count()
-    ships_in_port = Ship.objects.filter(status='in_port').count()
-    ships_under_repair = Ship.objects.filter(status='under_repair').count()
+    ships = list(
+        Ship.objects.all()
+        .prefetch_related('crew_members__user', 'voyages', 'maintenances__contractor')
+        .order_by('name')
+    )
+    ships = [enrich_ship_for_operations(ship) for ship in ships]
+    
+    # Определение статуса состава экипажа для каждого судна
+    for ship in ships:
+        crew_req = ship.readiness.context.get('crew_requirements', {})
+        requirements_configured = crew_req.get('requirements_configured', False)
+        missing_roles = crew_req.get('missing_roles', [])
+        
+        if not requirements_configured:
+            ship.crew_status = 'not_configured'
+            ship.crew_status_display = 'требования не настроены'
+            ship.crew_status_class = 'bg-secondary'  # серый
+        elif missing_roles:
+            ship.crew_status = 'shortage'
+            ship.crew_status_display = 'есть нехватка ролей'
+            ship.crew_status_class = 'bg-danger'  # красный
+        else:
+            ship.crew_status = 'complete'
+            ship.crew_status_display = 'состав укомплектован'
+            ship.crew_status_class = 'bg-success'  # зеленый
+    
+    # Фильтрация судов по готовности
+    ship_filter = request.GET.get('ship_filter', 'all')
+    filtered_ships = ships
+    if ship_filter == 'ready':
+        filtered_ships = [ship for ship in ships if ship.readiness.is_ready]
+    elif ship_filter == 'blocking':
+        filtered_ships = [ship for ship in ships if not ship.readiness.is_ready]
+    elif ship_filter == 'warning':
+        filtered_ships = [ship for ship in ships if ship.readiness.is_ready and ship.readiness.severity_summary.get('warning', 0) > 0]
+    # 'all' - без фильтрации
+    
+    # Фильтрация судов по статусу состава экипажа
+    crew_filter = request.GET.get('crew_filter', 'all')
+    if crew_filter == 'complete':
+        filtered_ships = [ship for ship in filtered_ships if ship.crew_status == 'complete']
+    elif crew_filter == 'shortage':
+        filtered_ships = [ship for ship in filtered_ships if ship.crew_status == 'shortage']
+    elif crew_filter == 'not_configured':
+        filtered_ships = [ship for ship in filtered_ships if ship.crew_status == 'not_configured']
+    # 'all' - без фильтрации
+    
+    # Сортировка судов
+    ship_sort = request.GET.get('ship_sort', 'name')
+    if ship_sort == 'criticality':
+        # Сортировка по критичности: blocking -> warning -> ok
+        # При этом blocking - не готовые (is_ready == False)
+        # warning - готовые, но есть warning
+        # ok - готовые без warning
+        def criticality_key(ship):
+            if not ship.readiness.is_ready:
+                return 0  # blocking
+            elif ship.readiness.severity_summary.get('warning', 0) > 0:
+                return 1  # warning
+            else:
+                return 2  # ok
+        filtered_ships.sort(key=lambda ship: (criticality_key(ship), ship.name))
+    else:  # 'name' (default)
+        filtered_ships.sort(key=lambda ship: ship.name)
+    
+    ships_at_sea = sum(1 for ship in ships if ship.actual_status_code == 'at_sea')
+    ships_in_port = sum(1 for ship in ships if ship.actual_status_code == 'in_port')
+    ships_under_repair = sum(1 for ship in ships if ship.actual_status_code == 'under_repair')
+    ships_ready = sum(1 for ship in ships if ship.readiness.is_ready)
 
-    # Текущие рейсы (не завершённые)
-    current_voyages = Voyage.objects.filter(is_completed=False).select_related('ship')
+    # Текущие рейсы (не завершённые) с фильтрацией
+    voyage_filter = request.GET.get('voyage_filter', 'current')
+    now = timezone.now()
+    current_voyages = filter_voyages_by_health(
+        Voyage.objects.select_related('ship'),
+        health_filter=voyage_filter,
+        now=now,
+    )
+
+    # Сортировка рейсов
+    voyage_sort = request.GET.get('voyage_sort', 'date')
+    if voyage_sort == 'criticality':
+        current_voyages = annotate_voyage_health_priority(current_voyages, now=now).order_by('criticality', '-start_date')
+    elif voyage_sort == 'ship_name':
+        current_voyages = current_voyages.order_by('ship__name', '-start_date')
+    else:  # 'date' (default)
+        current_voyages = current_voyages.order_by('-start_date')
 
     # Последние ремонты
     recent_maintenances = Maintenance.objects.all().order_by('-start_date')[:5]
 
+    # Проблемные объекты
+    problematic_report = get_system_problem_states()
+
     context = {
-        'ships': ships,
+        'ships': filtered_ships,
+        'total_ships': len(ships),
         'ships_at_sea': ships_at_sea,
         'ships_in_port': ships_in_port,
         'ships_under_repair': ships_under_repair,
+        'ships_ready': ships_ready,
         'current_voyages': current_voyages,
         'recent_maintenances': recent_maintenances,
+        'problematic': problematic_report.grouped,
+        'problematic_summary': problematic_report.severity_summary,
+        'problematic_total': problematic_report.total_issues,
         'page_title': 'Управление флотом',
+        'ship_filter': ship_filter,
+        'crew_filter': crew_filter,
+        'voyage_filter': voyage_filter,
+        'voyage_sort': voyage_sort,
     }
     return render(request, 'fleet/dashboard.html', context)
 
@@ -41,6 +197,7 @@ def ship_detail(request, ship_id):
     """Страница детальной информации о судне"""
     ship = get_object_or_404(Ship, id=ship_id)
     crew = CrewMember.objects.filter(assigned_ship=ship).select_related('user')
+    ship = enrich_ship_for_operations(ship, crew_members=crew)
     voyages = Voyage.objects.filter(ship=ship).order_by('-start_date')
     maintenances = Maintenance.objects.filter(ship=ship).order_by('-start_date')
 
@@ -200,6 +357,7 @@ def voyage_create(request, ship_id=None):
     ship = None
     if ship_id:
         ship = get_object_or_404(Ship, id=ship_id)
+        ship = enrich_ship_for_operations(ship)
     ships = Ship.objects.all().order_by('name')
     crew_members = CrewMember.objects.all().select_related('user').order_by('user__last_name')
     if request.method == 'POST':
@@ -213,8 +371,6 @@ def voyage_create(request, ship_id=None):
             end_date_str = request.POST.get('end_date')
             fishing_area = request.POST.get('fishing_area', 'okhotsk')
             catch_plan = float(request.POST.get('catch_plan', 0))
-            # Преобразование дат
-            from django.utils.dateparse import parse_datetime
             start_date = parse_datetime(start_date_str)
             if not start_date:
                 start_date = timezone.now()
@@ -224,8 +380,18 @@ def voyage_create(request, ship_id=None):
                 start_date = timezone.make_aware(start_date)
             if end_date and timezone.is_naive(end_date):
                 end_date = timezone.make_aware(end_date)
-            # Валидация пересечения дат с другими рейсами и ремонтами через метод clean модели
-            from django.core.exceptions import ValidationError
+
+            crew_ids = request.POST.getlist('crew')
+            selected_crew = list(CrewMember.objects.filter(id__in=crew_ids).select_related('user'))
+            readiness_crew = selected_crew or list(CrewMember.objects.filter(assigned_ship=ship).select_related('user'))
+            readiness = ship_readiness_service(ship, crew_members=readiness_crew, at_datetime=start_date)
+            if not readiness.is_ready:
+                messages.error(
+                    request,
+                    'Судно не готово к рейсу: ' + '; '.join(readiness.blocking_reasons)
+                )
+                return redirect('fleet:voyage_create')
+
             temp_voyage = Voyage(
                 ship=ship,
                 start_date=start_date,
@@ -235,50 +401,52 @@ def voyage_create(request, ship_id=None):
             try:
                 temp_voyage.clean()
             except ValidationError as e:
-                # Преобразуем ошибки в читаемые сообщения
-                error_messages = []
-                for field, errors in e.error_dict.items():
-                    for err in errors:
-                        error_messages.append(str(err))
+                error_messages = _validation_messages(e)
                 if error_messages:
                     messages.error(request, 'Ошибка валидации: ' + '; '.join(error_messages))
                 else:
                     messages.error(request, f'Ошибка валидации: {e}')
                 return redirect('fleet:voyage_create')
-            
-            # Создание рейса
-            voyage = Voyage.objects.create(
-                ship=ship,
+
+            crew = CrewMember.objects.filter(id__in=crew_ids).select_related('user')
+            crew_contract_validation = validate_crew_for_voyage_period(
+                crew,
+                voyage_start_date=start_date,
+                planned_return_date=end_date,
+            )
+            if not crew_contract_validation.is_valid:
+                messages.error(
+                    request,
+                    'Ошибка проверки контрактов экипажа: ' + '; '.join(crew_contract_validation.blocking_reasons)
+                )
+                return redirect('fleet:voyage_create')
+            overlapping_crew = _find_overlapping_crew(
+                crew,
                 start_date=start_date,
                 end_date=end_date,
-                fishing_area=fishing_area,
-                catch_plan=catch_plan,
-                is_completed=False,
             )
-            # Добавление экипажа с проверкой пересечения
-            crew_ids = request.POST.getlist('crew')
-            if crew_ids:
-                crew = CrewMember.objects.filter(id__in=crew_ids)
-                # Проверка пересечения для каждого члена экипажа
-                overlapping_crew = []
-                for c in crew:
-                    overlapping_voyages = Voyage.objects.filter(
-                        crew=c,
-                        is_completed=False,
-                        start_date__lt=end_date if end_date else timezone.now() + timezone.timedelta(days=365),
-                        end_date__gt=start_date,
-                    ).exclude(id=voyage.id if voyage else None)
-                    if overlapping_voyages.exists():
-                        overlapping_crew.append(c)
-                if overlapping_crew:
-                    names = ', '.join([c.user.get_full_name() for c in overlapping_crew])
-                    messages.warning(
-                        request,
-                        f'Следующие члены экипажа уже заняты в других рейсах в указанный период: {names}. '
-                        'Рейс не создан.'
-                    )
-                    return redirect('fleet:voyage_create')
-                voyage.crew.set(crew)
+            if overlapping_crew:
+                names = ', '.join([c.user.get_full_name() or c.user.username for c in overlapping_crew])
+                messages.warning(
+                    request,
+                    f'Следующие члены экипажа уже заняты в других рейсах в указанный период: {names}. '
+                    'Рейс не создан.'
+                )
+                return redirect('fleet:voyage_create')
+            for warning in crew_contract_validation.warnings:
+                messages.warning(request, warning)
+
+            with transaction.atomic():
+                voyage = Voyage.objects.create(
+                    ship=ship,
+                    start_date=start_date,
+                    end_date=end_date,
+                    fishing_area=fishing_area,
+                    catch_plan=catch_plan,
+                    is_completed=False,
+                )
+                if crew_ids:
+                    voyage.crew.set(crew)
             messages.success(request, f'Рейс для судна {ship.name} успешно создан.')
             return redirect('fleet:fleet_dashboard')
         except Exception as e:
@@ -286,7 +454,7 @@ def voyage_create(request, ship_id=None):
             return redirect('fleet:voyage_create')
     context = {
         'ship': ship,
-        'ships': ships,
+        'ships': [enrich_ship_for_operations(item) for item in ships],
         'crew_members': crew_members,
         'selected_crew_ids': [],
         'page_title': 'Создать рейс'
@@ -312,8 +480,6 @@ def voyage_edit(request, voyage_id):
             end_date_str = request.POST.get('end_date')
             fishing_area = request.POST.get('fishing_area', 'okhotsk')
             catch_plan = float(request.POST.get('catch_plan', 0))
-            # Преобразование дат
-            from django.utils.dateparse import parse_datetime
             start_date = parse_datetime(start_date_str)
             if not start_date:
                 start_date = timezone.now()
@@ -323,8 +489,23 @@ def voyage_edit(request, voyage_id):
                 start_date = timezone.make_aware(start_date)
             if end_date and timezone.is_naive(end_date):
                 end_date = timezone.make_aware(end_date)
-            # Валидация пересечения дат с другими рейсами и ремонтами через метод clean модели
-            from django.core.exceptions import ValidationError
+
+            crew_ids = request.POST.getlist('crew')
+            selected_crew = list(CrewMember.objects.filter(id__in=crew_ids).select_related('user'))
+            readiness_crew = selected_crew or list(CrewMember.objects.filter(assigned_ship=ship).select_related('user'))
+            readiness = ship_readiness_service(
+                ship,
+                crew_members=readiness_crew,
+                at_datetime=start_date,
+                exclude_voyage_id=voyage.id,
+            )
+            if not readiness.is_ready:
+                messages.error(
+                    request,
+                    'Судно не готово к рейсу: ' + '; '.join(readiness.blocking_reasons)
+                )
+                return redirect('fleet:voyage_edit', voyage_id=voyage.id)
+
             # Временно обновляем поля voyage для проверки
             original_ship = voyage.ship
             original_start = voyage.start_date
@@ -339,52 +520,56 @@ def voyage_edit(request, voyage_id):
                 voyage.ship = original_ship
                 voyage.start_date = original_start
                 voyage.end_date = original_end
-                # Преобразуем ошибки в читаемые сообщения
-                error_messages = []
-                for field, errors in e.error_dict.items():
-                    for err in errors:
-                        error_messages.append(str(err))
+                error_messages = _validation_messages(e)
                 if error_messages:
                     messages.error(request, 'Ошибка валидации: ' + '; '.join(error_messages))
                 else:
                     messages.error(request, f'Ошибка валидации: {e}')
                 return redirect('fleet:voyage_edit', voyage_id=voyage.id)
             # Если валидация прошла, проверяем экипаж
-            crew_ids = request.POST.getlist('crew')
-            if crew_ids:
-                crew = CrewMember.objects.filter(id__in=crew_ids)
-                # Проверка пересечения для каждого члена экипажа (исключая текущий рейс)
-                overlapping_crew = []
-                for c in crew:
-                    overlapping_voyages = Voyage.objects.filter(
-                        crew=c,
-                        is_completed=False,
-                        start_date__lt=end_date if end_date else timezone.now() + timezone.timedelta(days=365),
-                        end_date__gt=start_date,
-                    ).exclude(id=voyage.id)
-                    if overlapping_voyages.exists():
-                        overlapping_crew.append(c)
-                if overlapping_crew:
-                    # Восстанавливаем оригинальные значения
-                    voyage.ship = original_ship
-                    voyage.start_date = original_start
-                    voyage.end_date = original_end
-                    names = ', '.join([c.user.get_full_name() for c in overlapping_crew])
-                    messages.warning(
-                        request,
-                        f'Следующие члены экипажа уже заняты в других рейсах в указанный период: {names}. '
-                        'Изменения не сохранены.'
-                    )
-                    return redirect('fleet:voyage_edit', voyage_id=voyage.id)
+            crew = CrewMember.objects.filter(id__in=crew_ids).select_related('user')
+            crew_contract_validation = validate_crew_for_voyage_period(
+                crew,
+                voyage_start_date=start_date,
+                planned_return_date=end_date,
+            )
+            if not crew_contract_validation.is_valid:
+                voyage.ship = original_ship
+                voyage.start_date = original_start
+                voyage.end_date = original_end
+                messages.error(
+                    request,
+                    'Ошибка проверки контрактов экипажа: ' + '; '.join(crew_contract_validation.blocking_reasons)
+                )
+                return redirect('fleet:voyage_edit', voyage_id=voyage.id)
+            overlapping_crew = _find_overlapping_crew(
+                crew,
+                start_date=start_date,
+                end_date=end_date,
+                exclude_voyage_id=voyage.id,
+            )
+            if overlapping_crew:
+                voyage.ship = original_ship
+                voyage.start_date = original_start
+                voyage.end_date = original_end
+                names = ', '.join([c.user.get_full_name() or c.user.username for c in overlapping_crew])
+                messages.warning(
+                    request,
+                    f'Следующие члены экипажа уже заняты в других рейсах в указанный период: {names}. '
+                    'Изменения не сохранены.'
+                )
+                return redirect('fleet:voyage_edit', voyage_id=voyage.id)
+            for warning in crew_contract_validation.warnings:
+                messages.warning(request, warning)
             # Если проверка экипажа прошла, сохраняем остальные поля
-            voyage.fishing_area = fishing_area
-            voyage.catch_plan = catch_plan
-            voyage.save()
-            # Обновление экипажа
-            if crew_ids:
-                voyage.crew.set(crew)
-            else:
-                voyage.crew.clear()
+            with transaction.atomic():
+                voyage.fishing_area = fishing_area
+                voyage.catch_plan = catch_plan
+                voyage.save()
+                if crew_ids:
+                    voyage.crew.set(crew)
+                else:
+                    voyage.crew.clear()
             messages.success(request, f'Рейс для судна {ship.name} успешно обновлён.')
             return redirect('fleet:fleet_dashboard')
         except Exception as e:
@@ -407,12 +592,38 @@ def voyage_complete(request, voyage_id):
     """Завершение рейса с вводом фактической добычи"""
     voyage = get_object_or_404(Voyage, id=voyage_id)
     if request.method == 'POST':
-        # В реальном проекте здесь будет форма
-        voyage.is_completed = True
-        voyage.end_date = timezone.now()
-        voyage.save()
-        messages.success(request, f'Рейс завершён. Факт добычи: {voyage.actual_catch} т')
-        return redirect('fleet:ship_detail', ship_id=voyage.ship.id)
+        try:
+            actual_catch_raw = request.POST.get('actual_catch', '')
+            end_date_raw = request.POST.get('end_date', '')
+
+            actual_catch = float(actual_catch_raw) if actual_catch_raw not in ['', None] else None
+            end_date = parse_datetime(end_date_raw) if end_date_raw else timezone.now()
+
+            if timezone.is_naive(end_date):
+                end_date = timezone.make_aware(end_date)
+
+            if actual_catch is not None and actual_catch < 0:
+                messages.error(request, 'Фактическая добыча не может быть отрицательной.')
+                return redirect('fleet:voyage_complete', voyage_id=voyage.id)
+
+            if end_date <= voyage.start_date:
+                messages.error(request, 'Дата возвращения должна быть позже даты выхода.')
+                return redirect('fleet:voyage_complete', voyage_id=voyage.id)
+
+            with transaction.atomic():
+                voyage.actual_catch = actual_catch
+                voyage.end_date = end_date
+                voyage.is_completed = True
+                voyage.save()
+
+            messages.success(request, f'Рейс завершён. Факт добычи: {voyage.actual_catch if voyage.actual_catch is not None else "—"} т')
+            return redirect('fleet:ship_detail', ship_id=voyage.ship.id)
+        except ValueError:
+            messages.error(request, 'Проверьте значение фактической добычи.')
+            return redirect('fleet:voyage_complete', voyage_id=voyage.id)
+        except Exception as e:
+            messages.error(request, f'Ошибка при завершении рейса: {e}')
+            return redirect('fleet:voyage_complete', voyage_id=voyage.id)
     context = {'voyage': voyage, 'page_title': 'Завершить рейс'}
     return render(request, 'fleet/voyage_complete.html', context)
 
@@ -420,15 +631,89 @@ def voyage_complete(request, voyage_id):
 @login_required
 @role_required(['director', 'fleet_manager', 'crew'])
 def crew_list(request):
-    """Список всего экипажа"""
-    crew = CrewMember.objects.all().select_related('user', 'assigned_ship').order_by('rank')
-    context = {'crew': crew, 'page_title': 'Экипаж'}
+    """Список всего экипажа с фильтрацией по статусу контракта"""
+    from django.utils import timezone
+    from django.db.models import Q
+    
+    crew = CrewMember.objects.all().select_related('user', 'assigned_ship')
+    
+    # Получаем параметр фильтрации
+    contract_filter = request.GET.get('contract_status', 'all')
+    today = timezone.now().date()
+    
+    # Применяем фильтрацию по статусу контракта
+    if contract_filter == 'expired':
+        crew = crew.filter(contract_end_date__lt=today)
+    elif contract_filter == 'expires_7':
+        crew = crew.filter(
+            contract_end_date__gte=today,
+            contract_end_date__lte=today + timezone.timedelta(days=7)
+        )
+    elif contract_filter == 'expires_30':
+        crew = crew.filter(
+            contract_end_date__gte=today + timezone.timedelta(days=8),
+            contract_end_date__lte=today + timezone.timedelta(days=30)
+        )
+    elif contract_filter == 'active':
+        crew = crew.filter(
+            contract_end_date__gt=today + timezone.timedelta(days=30)
+        )
+    elif contract_filter == 'no_contract':
+        crew = crew.filter(contract_end_date__isnull=True)
+    # 'all' - без фильтрации
+    
+    # Сортировка по умолчанию: сначала истёкшие, потом скоро истекающие, потом остальные
+    crew = crew.order_by(
+        'contract_end_date',  # null first для no_contract
+        'rank',
+        'user__last_name'
+    )
+    
+    context = {
+        'crew': crew,
+        'page_title': 'Экипаж',
+        'today': today,
+        'contract_filter': contract_filter,
+    }
     return render(request, 'fleet/crew_list.html', context)
 @login_required
 @role_required(['director', 'fleet_manager', 'crew', 'engineer', 'dispatcher'])
 def maintenance_list(request):
     """Список всех ремонтов"""
-    # Фильтрация и сортировка: сначала "В работе", потом "Запланировано", потом "Завершено"
+    
+    # Фильтрация по проблемности
+    maintenance_filter = request.GET.get('maintenance_filter', 'all')
+    today = timezone.now().date()
+    maintenances = filter_maintenances_by_health(
+        Maintenance.objects.all(),
+        health_filter=maintenance_filter,
+        today=today,
+    )
+    
+    if False and maintenance_filter == 'overdue':
+        # Просроченные (planned, но дата прошла)
+        maintenances = maintenances.filter(status='planned', start_date__lt=today)
+    elif False and maintenance_filter == 'too_long':
+        # Слишком долгие (in_progress слишком долго)
+        maintenances = maintenances.filter(
+            status='in_progress',
+            start_date__lte=today - timezone.timedelta(days=MAINTENANCE_TOO_LONG_DAYS)
+        )
+    elif False and maintenance_filter == 'normal':
+        # Нормальные (не просроченные и не слишком долгие)
+        maintenances = maintenances.exclude(
+            status='planned', start_date__lt=today
+        ).exclude(
+            status='in_progress',
+            start_date__lte=today - timezone.timedelta(days=MAINTENANCE_TOO_LONG_DAYS)
+        )
+    # 'all' - без фильтрации
+    
+    # Сортировка
+    maintenance_sort = request.GET.get('maintenance_sort', 'date')
+    from django.db.models import Case, When, IntegerField
+    
+    # Базовая сортировка по статусу (для порядка по умолчанию)
     order = Case(
         When(status='in_progress', then=0),
         When(status='planned', then=1),
@@ -436,13 +721,21 @@ def maintenance_list(request):
         default=3,
         output_field=IntegerField(),
     )
-    maintenances = Maintenance.objects.all().annotate(
-        custom_order=order
-    ).order_by('custom_order', '-start_date')
+    maintenances = maintenances.annotate(custom_order=order)
+    
+    if maintenance_sort == 'criticality':
+        # Критичность: overdue (blocking) -> too_long (warning) -> normal
+        maintenances = annotate_maintenance_health_priority(maintenances, today=today).order_by('criticality', 'custom_order', '-start_date')
+    elif maintenance_sort == 'ship_name':
+        maintenances = maintenances.order_by('ship__name', 'custom_order', '-start_date')
+    else:  # 'date' (default)
+        maintenances = maintenances.order_by('custom_order', '-start_date')
     
     context = {
         'maintenances': maintenances,
         'page_title': 'Судоремонт',
+        'maintenance_filter': maintenance_filter,
+        'maintenance_sort': maintenance_sort,
     }
     return render(request, 'fleet/maintenance_list.html', context)
 
@@ -471,8 +764,6 @@ def maintenance_create(request, ship_id=None):
             status = request.POST.get('status', 'planned')
             contractor_id = request.POST.get('contractor')
             contractor_text = request.POST.get('contractor_text', '')
-            # Преобразование дат
-            from django.utils.dateparse import parse_date
             start_date = parse_date(start_date_str) if start_date_str else timezone.now().date()
             end_date = parse_date(end_date_str) if end_date_str else None
             # Определение контрагента
@@ -482,8 +773,6 @@ def maintenance_create(request, ship_id=None):
                     contractor = Contractor.objects.get(id=contractor_id)
                 except Contractor.DoesNotExist:
                     pass
-            # Создание временного объекта для валидации
-            from django.core.exceptions import ValidationError
             maintenance = Maintenance(
                 ship=ship,
                 maintenance_type=maintenance_type,
@@ -498,34 +787,23 @@ def maintenance_create(request, ship_id=None):
             try:
                 maintenance.clean()
             except ValidationError as e:
-                # Преобразуем ошибки в читаемые сообщения
-                error_messages = []
-                for field, errors in e.error_dict.items():
-                    for err in errors:
-                        error_messages.append(str(err))
+                error_messages = _validation_messages(e)
                 if error_messages:
                     messages.error(request, 'Ошибка валидации: ' + '; '.join(error_messages))
                 else:
                     messages.error(request, f'Ошибка валидации: {e}')
                 return redirect('fleet:maintenance_create')
             # Проверка пересечения с рейсами для аварийного ремонта (предупреждение)
-            from django.utils import timezone
-            from datetime import timedelta
             if maintenance_type == 'emergency':
-                overlapping_voyages = Voyage.objects.filter(
-                    ship=ship,
-                    is_completed=False,
-                    start_date__lt=end_date if end_date else timezone.now().date() + timedelta(days=365),
-                    end_date__gt=start_date,
-                )
+                overlapping_voyages = _find_overlapping_voyages_for_maintenance(ship, start_date, end_date)
                 if overlapping_voyages.exists():
                     messages.warning(
                         request,
                         f'Внимание! Судно находится в рейсе в указанный период. '
                         f'Требуется досрочное завершение рейса(ов): {", ".join(str(v) for v in overlapping_voyages[:3])}.'
                     )
-            # Сохранение записи
-            maintenance.save()
+            with transaction.atomic():
+                maintenance.save()
             messages.success(request, f'Запись о ремонте для судна {ship.name} успешно создана.')
             return redirect('fleet:maintenance_list')
         except Exception as e:
@@ -547,6 +825,7 @@ def maintenance_create(request, ship_id=None):
 def maintenance_detail(request, maintenance_id):
     """Детальная информация о ремонте"""
     maintenance = get_object_or_404(Maintenance, id=maintenance_id)
+    maintenance.ship = enrich_ship_for_operations(maintenance.ship)
     context = {
         'maintenance': maintenance,
         'page_title': f'Ремонт {maintenance.ship.name}',
@@ -576,8 +855,6 @@ def maintenance_edit(request, maintenance_id):
             status = request.POST.get('status', 'planned')
             contractor_id = request.POST.get('contractor')
             contractor_text = request.POST.get('contractor_text', '')
-            # Преобразование дат
-            from django.utils.dateparse import parse_date
             start_date = parse_date(start_date_str) if start_date_str else maintenance.start_date
             end_date = parse_date(end_date_str) if end_date_str else None
             # Определение контрагента
@@ -602,8 +879,6 @@ def maintenance_edit(request, maintenance_id):
             maintenance.status = status
             maintenance.contractor = contractor
             maintenance.contractor_text = contractor_text
-            # Валидация через метод clean модели
-            from django.core.exceptions import ValidationError
             try:
                 maintenance.clean()
             except ValidationError as e:
@@ -612,34 +887,28 @@ def maintenance_edit(request, maintenance_id):
                 maintenance.start_date = original_start
                 maintenance.end_date = original_end
                 maintenance.maintenance_type = original_type
-                # Преобразуем ошибки в читаемые сообщения
-                error_messages = []
-                for field, errors in e.error_dict.items():
-                    for err in errors:
-                        error_messages.append(str(err))
+                error_messages = _validation_messages(e)
                 if error_messages:
                     messages.error(request, 'Ошибка валидации: ' + '; '.join(error_messages))
                 else:
                     messages.error(request, f'Ошибка валидации: {e}')
                 return redirect('fleet:maintenance_edit', maintenance_id=maintenance.id)
             # Проверка пересечения с рейсами для аварийного ремонта (предупреждение)
-            from django.utils import timezone
-            from datetime import timedelta
             if maintenance_type == 'emergency':
-                overlapping_voyages = Voyage.objects.filter(
-                    ship=ship,
-                    is_completed=False,
-                    start_date__lt=end_date if end_date else timezone.now().date() + timedelta(days=365),
-                    end_date__gt=start_date,
-                ).exclude(id=maintenance.id)  # исключаем текущий ремонт (хотя это не нужно)
+                overlapping_voyages = _find_overlapping_voyages_for_maintenance(
+                    ship,
+                    start_date,
+                    end_date,
+                    exclude_maintenance_id=maintenance.id,
+                )
                 if overlapping_voyages.exists():
                     messages.warning(
                         request,
                         f'Внимание! Судно находится в рейсе в указанный период. '
                         f'Требуется досрочное завершение рейса(ов): {", ".join(str(v) for v in overlapping_voyages[:3])}.'
                     )
-            # Сохранение записи
-            maintenance.save()
+            with transaction.atomic():
+                maintenance.save()
             messages.success(request, f'Запись о ремонте для судна {ship.name} успешно обновлена.')
             return redirect('fleet:maintenance_list')
         except Exception as e:
@@ -922,7 +1191,7 @@ def fleet_performance_report(request):
                 delta = v.end_date - v.start_date
                 ship_days += delta.days
         performance_data.append({
-            'ship': ship,
+            'ship': enrich_ship_for_operations(ship),
             'voyage_count': voyage_count,
             'total_catch': ship_catch,
             'total_days': ship_days,
@@ -985,3 +1254,43 @@ def crew_manifest(request):
         'current_date': timezone.now(),
     }
     return render(request, 'fleet/crew_manifest.html', context)
+
+
+@login_required
+@role_required(['director', 'fleet_manager', 'crew', 'dispatcher', 'engineer'])
+def notifications_list(request):
+    """Список всех уведомлений с фильтрами и сортировкой"""
+    notifications = Notification.objects.all()
+    
+    # Фильтры
+    filter_param = request.GET.get('filter', 'all')
+    severity_param = request.GET.get('severity')
+    
+    if filter_param == 'active':
+        notifications = notifications.filter(is_resolved=False)
+    elif filter_param == 'resolved':
+        notifications = notifications.filter(is_resolved=True)
+    elif filter_param == 'unread':
+        notifications = notifications.filter(is_read=False)
+    
+    if severity_param in ['blocking', 'warning', 'info']:
+        notifications = notifications.filter(severity=severity_param)
+    
+    # Сортировка
+    sort_param = request.GET.get('sort', 'newest')
+    if sort_param == 'oldest':
+        notifications = notifications.order_by('created_at')
+    else:  # newest (default)
+        notifications = notifications.order_by('is_resolved', '-created_at')
+    
+    unread_count = Notification.objects.filter(is_read=False).count()
+    
+    context = {
+        'notifications': notifications,
+        'unread_count': unread_count,
+        'filter_param': filter_param,
+        'severity_param': severity_param,
+        'sort_param': sort_param,
+        'page_title': 'Уведомления',
+    }
+    return render(request, 'fleet/notifications_list.html', context)

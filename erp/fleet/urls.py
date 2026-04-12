@@ -34,4 +34,5 @@ urlpatterns = [
     path('contractors/create/', views.contractor_create, name='contractor_create'),
     path('contractors/<int:contractor_id>/edit/', views.contractor_edit, name='contractor_edit'),
     path('contractors/<int:contractor_id>/delete/', views.contractor_delete, name='contractor_delete'),
+    path('notifications/', views.notifications_list, name='notifications_list'),
 ]

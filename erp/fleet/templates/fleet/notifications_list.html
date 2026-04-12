@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Уведомления{% endblock %}
+
+{% block page_title %}Уведомления{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item active">Уведомления</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-bell"></i> Уведомления 
+                    {% if unread_count %}
+                    <span class="badge bg-danger ms-2">{{ unread_count }} непрочитанных</span>
+                    {% endif %}
+                </h5>
+                <div class="d-flex gap-2">
+                    <!-- Фильтры -->
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?{% if severity_param %}severity={{ severity_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}filter=all" 
+                           class="btn btn-outline-secondary {% if filter_param == 'all' %}active{% endif %}">Все</a>
+                        <a href="?{% if severity_param %}severity={{ severity_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}filter=active" 
+                           class="btn btn-outline-secondary {% if filter_param == 'active' %}active{% endif %}">Активные</a>
+                        <a href="?{% if severity_param %}severity={{ severity_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}filter=resolved" 
+                           class="btn btn-outline-secondary {% if filter_param == 'resolved' %}active{% endif %}">Решённые</a>
+                        <a href="?{% if severity_param %}severity={{ severity_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}filter=unread" 
+                           class="btn btn-outline-secondary {% if filter_param == 'unread' %}active{% endif %}">Непрочитанные</a>
+                    </div>
+                    
+                    <!-- Severity фильтр -->
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?{% if filter_param != 'all' %}filter={{ filter_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}" 
+                           class="btn btn-outline-secondary {% if not severity_param %}active{% endif %}">Все severity</a>
+                        <a href="?{% if filter_param != 'all' %}filter={{ filter_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}severity=blocking" 
+                           class="btn btn-outline-danger {% if severity_param == 'blocking' %}active{% endif %}">Blocking</a>
+                        <a href="?{% if filter_param != 'all' %}filter={{ filter_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}severity=warning" 
+                           class="btn btn-outline-warning {% if severity_param == 'warning' %}active{% endif %}">Warning</a>
+                        <a href="?{% if filter_param != 'all' %}filter={{ filter_param }}&{% endif %}{% if sort_param %}sort={{ sort_param }}&{% endif %}severity=info" 
+                           class="btn btn-outline-info {% if severity_param == 'info' %}active{% endif %}">Info</a>
+                    </div>
+                    
+                    <!-- Сортировка -->
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?{% if filter_param != 'all' %}filter={{ filter_param }}&{% endif %}{% if severity_param %}severity={{ severity_param }}&{% endif %}sort=newest" 
+                           class="btn btn-outline-secondary {% if sort_param == 'newest' or not sort_param %}active{% endif %}">Новые</a>
+                        <a href="?{% if filter_param != 'all' %}filter={{ filter_param }}&{% endif %}{% if severity_param %}severity={{ severity_param }}&{% endif %}sort=oldest" 
+                           class="btn btn-outline-secondary {% if sort_param == 'oldest' %}active{% endif %}">Старые</a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if notifications %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 100px;">Severity</th>
+                                <th>Заголовок</th>
+                                <th>Сообщение</th>
+                                <th style="width: 120px;">Сущность</th>
+                                <th style="width: 80px;">Прочитано</th>
+                                <th style="width: 80px;">Решено</th>
+                                <th style="width: 140px;">Создано</th>
+                                <th style="width: 140px;">Обновлено</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for notification in notifications %}
+                            <tr>
+                                <td>
+                                    {% if notification.severity == 'blocking' %}
+                                        <span class="badge bg-danger text-white">Blocking</span>
+                                    {% elif notification.severity == 'warning' %}
+                                        <span class="badge bg-warning text-dark">Warning</span>
+                                    {% elif notification.severity == 'info' %}
+                                        <span class="badge bg-info text-white">Info</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong>{{ notification.title }}</strong>
+                                </td>
+                                <td>{{ notification.message|truncatechars:100 }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ notification.get_entity_type_display }}</span>
+                                    <br><small>ID: {{ notification.entity_id }}</small>
+                                </td>
+                                <td>
+                                    {% if notification.is_read %}
+                                        <span class="badge bg-success">Да</span>
+                                    {% else %}
+                                        <span class="badge bg-danger text-white">Нет</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if notification.is_resolved %}
+                                        <span class="badge bg-success">
+                                            {% if notification.resolved_at %}{{ notification.resolved_at|date:"d.m.Y H:i" }}{% endif %}
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark">Нет</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ notification.created_at|date:"d.m.Y H:i" }}</td>
+                                <td>{{ notification.updated_at|date:"d.m.Y H:i" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <i class="bi bi-bell display-1 text-muted mb-3"></i>
+                    <h5 class="text-muted">Уведомлений нет</h5>
+                    <p class="text-muted mb-0">Пока нет активных уведомлений в системе.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
