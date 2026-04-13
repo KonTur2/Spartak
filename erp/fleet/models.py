@@ -1,6 +1,12 @@
+from datetime import datetime, time
+
 from django.db import models
+from django.db.models.signals import m2m_changed
+from django.db.models import Q
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
+from django.dispatch import receiver
 from django.utils import timezone
 
 
@@ -23,6 +29,19 @@ class Ship(models.Model):
     status = models.CharField('Статус', max_length=20, choices=STATUS_CHOICES, default='in_port')
     current_location = models.CharField('Текущее местоположение', max_length=300, blank=True)
     technical_condition = models.TextField('Техническое состояние', blank=True)
+    engine_hours = models.PositiveIntegerField(
+        'Наработка двигателя (часы)',
+        validators=[MinValueValidator(0)],
+        null=True,
+        blank=True,
+        help_text='Необязательное поле для учёта наработки судна.',
+    )
+    last_repair_date = models.DateField(
+        'Дата последнего ремонта',
+        null=True,
+        blank=True,
+        help_text='Необязательное поле для последнего зафиксированного ремонта.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -35,38 +54,9 @@ class Ship(models.Model):
         return f"{self.name} ({self.imo_number})"
 
     def get_actual_status(self, date=None):
-        """
-        Возвращает актуальный статус судна на указанную дату (по умолчанию сегодня).
-        Приоритет:
-        1. Если судно выведено из эксплуатации (ручной статус) -> 'out_of_service'
-        2. Если есть активный ремонт (статус 'in_progress' и даты включают date) -> 'under_repair'
-        3. Если есть активный рейс (не завершён и даты включают date) -> 'at_sea'
-        4. Иначе -> 'in_port'
-        """
-        from django.utils import timezone
-        if date is None:
-            date = timezone.now().date()
-        # Если судно выведено из эксплуатации (ручной статус), возвращаем его
-        if self.status == 'out_of_service':
-            return 'out_of_service'
-        # Проверяем активный ремонт
-        active_maintenance = self.maintenances.filter(
-            status='in_progress',
-            start_date__lte=date,
-            end_date__gte=date
-        ).exists()
-        if active_maintenance:
-            return 'under_repair'
-        # Проверяем активный рейс
-        active_voyage = self.voyages.filter(
-            is_completed=False,
-            start_date__lte=date,
-            end_date__gte=date
-        ).exists()
-        if active_voyage:
-            return 'at_sea'
-        # Иначе в порту
-        return 'in_port'
+        from .services import get_ship_operational_state
+
+        return get_ship_operational_state(self, at_datetime=date).actual_status
 
     @property
     def actual_status(self):
@@ -74,12 +64,71 @@ class Ship(models.Model):
         return self.get_actual_status()
 
     def get_actual_status_display(self, date=None):
-        """Возвращает отображаемое название актуального статуса."""
-        status = self.get_actual_status(date)
-        for key, label in self.STATUS_CHOICES:
-            if key == status:
-                return label
-        return status
+        from .services import get_ship_operational_state
+
+        return get_ship_operational_state(self, at_datetime=date).status_display
+
+
+class MaintenanceLog(models.Model):
+    ship = models.ForeignKey(
+        Ship,
+        on_delete=models.CASCADE,
+        related_name='maintenance_logs',
+        verbose_name='Судно',
+    )
+    recorded_at = models.DateTimeField('Дата и время записи', default=timezone.now)
+    engine_hours = models.PositiveIntegerField(
+        'Наработка двигателя (часы)',
+        validators=[MinValueValidator(0)],
+    )
+    note = models.TextField('Заметка', blank=True)
+    author = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='maintenance_logs',
+        verbose_name='Автор записи',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Журнал технических сообщений'
+        verbose_name_plural = 'Журнал технических сообщений'
+        ordering = ['-recorded_at', '-id']
+
+    def __str__(self):
+        return f'{self.ship.name} @ {self.recorded_at:%d.%m.%Y %H:%M}'
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+
+        super().clean()
+
+        if self.engine_hours is None:
+            return
+
+        latest_entry = (
+            MaintenanceLog.objects.filter(ship=self.ship)
+            .exclude(pk=self.pk)
+            .order_by('-recorded_at', '-id')
+            .first()
+        )
+        if latest_entry and self.engine_hours < latest_entry.engine_hours:
+            raise ValidationError({
+                'engine_hours': (
+                    'Новая наработка не может быть меньше последней записи '
+                    f'по судну ({latest_entry.engine_hours} ч).'
+                )
+            })
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        super().save(*args, **kwargs)
+        if is_new:
+            from .services import process_maintenance_log_event
+
+            process_maintenance_log_event(self)
 
 
 class CrewMember(models.Model):
@@ -106,6 +155,105 @@ class CrewMember(models.Model):
 
     def __str__(self):
         return f"{self.user.get_full_name()} ({self.get_rank_display()})"
+
+    def clean(self):
+        super().clean()
+        if self.rank == 'captain' and self.assigned_ship_id:
+            duplicate_captain_exists = CrewMember.objects.filter(
+                rank='captain',
+                assigned_ship_id=self.assigned_ship_id,
+            ).exclude(pk=self.pk).exists()
+            if duplicate_captain_exists:
+                raise ValidationError({
+                    'assigned_ship': 'На судне уже назначен капитан. Сначала снимите текущее назначение.',
+                })
+
+    def get_contract_status(self, date=None):
+        """
+        Возвращает статус контракта на указанную дату (по умолчанию сегодня).
+        Возможные значения:
+        - 'expired': контракт истёк (contract_end_date < date)
+        - 'expires_soon_7': истекает в ближайшие 7 дней (включая сегодня)
+        - 'expires_soon_30': истекает в ближайшие 30 дней (но не в ближайшие 7)
+        - 'active': активен (более 30 дней до окончания)
+        - 'no_contract': нет даты окончания контракта
+        """
+        from django.utils import timezone
+        if date is None:
+            date = timezone.now().date()
+        
+        if not self.contract_end_date:
+            return 'no_contract'
+        
+        days_left = (self.contract_end_date - date).days
+        
+        if days_left < 0:
+            return 'expired'
+        elif days_left <= 7:
+            return 'expires_soon_7'
+        elif days_left <= 30:
+            return 'expires_soon_30'
+        else:
+            return 'active'
+
+    @property
+    def contract_status(self):
+        """Свойство для получения статуса контракта на текущую дату."""
+        return self.get_contract_status()
+
+    def get_contract_status_display(self, date=None):
+        """Возвращает отображаемое название статуса контракта."""
+        status = self.get_contract_status(date)
+        status_map = {
+            'expired': 'Истёк',
+            'expires_soon_7': 'Истекает в ближайшие 7 дней',
+            'expires_soon_30': 'Истекает в ближайшие 30 дней',
+            'active': 'Активен',
+            'no_contract': 'Без контракта',
+        }
+        return status_map.get(status, status)
+
+    def is_contract_expired(self, date=None):
+        """Проверяет, истёк ли контракт на указанную дату."""
+        return self.get_contract_status(date) == 'expired'
+
+    def is_contract_expiring_soon(self, days=7, date=None):
+        """Проверяет, истекает ли контракт в ближайшие N дней."""
+        from django.utils import timezone
+        if date is None:
+            date = timezone.now().date()
+        
+        if not self.contract_end_date:
+            return False
+        
+        days_left = (self.contract_end_date - date).days
+        return 0 <= days_left <= days
+
+
+class ShipCrewRequirement(models.Model):
+    ship_type = models.CharField('Тип судна', max_length=20, choices=Ship.SHIP_TYPE_CHOICES)
+    role = models.CharField('Роль экипажа', max_length=20, choices=CrewMember.RANK_CHOICES)
+    required_count = models.PositiveIntegerField(
+        'Требуемое количество',
+        validators=[MinValueValidator(1)],
+        default=1,
+    )
+
+    class Meta:
+        verbose_name = 'Требование к составу экипажа'
+        verbose_name_plural = 'Требования к составу экипажа'
+        ordering = ['ship_type', 'role']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['ship_type', 'role'],
+                name='fleet_ship_crew_requirement_unique_role_per_type',
+            )
+        ]
+
+    def __str__(self):
+        ship_type_label = dict(Ship.SHIP_TYPE_CHOICES).get(self.ship_type, self.ship_type)
+        role_label = dict(CrewMember.RANK_CHOICES).get(self.role, self.role)
+        return f'{ship_type_label}: {role_label} x{self.required_count}'
 
 
 class Voyage(models.Model):
@@ -150,20 +298,24 @@ class Voyage(models.Model):
         from django.core.exceptions import ValidationError
         from django.utils import timezone
 
+        if self.end_date and self.end_date <= self.start_date:
+            raise ValidationError('Дата возвращения должна быть позже даты выхода.')
+
         # Если рейс завершён, не проверяем пересечения (можно пропустить)
         if self.is_completed:
             return
 
         # Определяем интервал рейса
         start = self.start_date
-        end = self.end_date if self.end_date else timezone.now() + timezone.timedelta(days=365)  # если end_date не указан, считаем бесконечным
+        end = self.end_date if self.end_date else timezone.now() + timezone.timedelta(days=3650)
 
         # Проверка пересечения с другими рейсами этого судна (исключая текущий, если он уже существует)
         overlapping_voyages = Voyage.objects.filter(
             ship=self.ship,
             is_completed=False,
             start_date__lt=end,
-            end_date__gt=start
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=start)
         ).exclude(pk=self.pk)
         if overlapping_voyages.exists():
             raise ValidationError(
@@ -175,8 +327,9 @@ class Voyage(models.Model):
         overlapping_maintenances = Maintenance.objects.filter(
             ship=self.ship,
             status__in=['in_progress', 'planned'],
-            start_date__lt=end,
-            end_date__gt=start
+            start_date__lt=end.date(),
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=start.date())
         )
         if overlapping_maintenances.exists():
             raise ValidationError(
@@ -208,7 +361,8 @@ class Voyage(models.Model):
             ship=self.ship,
             status='in_progress',
             start_date__lte=now.date(),
-            end_date__gte=now.date()
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=now.date())
         ).exists()
         
         # Определяем, является ли рейс активным в данный момент
@@ -237,7 +391,8 @@ class Voyage(models.Model):
                 ship=self.ship,
                 is_completed=False,
                 start_date__lte=now,
-                end_date__gt=now
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gt=now)
             ).exclude(pk=self.pk).exists()
             if not other_active and self.ship.status == 'at_sea' and not active_maintenance:
                 self.ship.status = 'in_port'
@@ -246,6 +401,48 @@ class Voyage(models.Model):
         # но на всякий случай оставляем статус как есть.
         
         super().save(*args, **kwargs)
+
+
+class Notification(models.Model):
+    ENTITY_TYPE_CHOICES = [
+        ('ship', 'Судно'),
+        ('voyage', 'Рейс'),
+        ('maintenance', 'Ремонт'),
+        ('crew', 'Экипаж'),
+    ]
+
+    SEVERITY_CHOICES = [
+        ('info', 'Info'),
+        ('warning', 'Warning'),
+        ('blocking', 'Blocking'),
+    ]
+
+    entity_type = models.CharField('Тип сущности', max_length=20, choices=ENTITY_TYPE_CHOICES)
+    entity_id = models.PositiveIntegerField('ID сущности')
+    severity = models.CharField('Severity', max_length=20, choices=SEVERITY_CHOICES)
+    code = models.CharField('Код проблемы', max_length=100)
+    title = models.CharField('Заголовок', max_length=200)
+    message = models.TextField('Сообщение')
+    is_read = models.BooleanField('Прочитано', default=False)
+    is_resolved = models.BooleanField('Решено', default=False)
+    resolved_at = models.DateTimeField('Дата решения', null=True, blank=True)
+    context = models.JSONField('Контекст', default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Уведомление'
+        verbose_name_plural = 'Уведомления'
+        ordering = ['is_resolved', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['entity_type', 'entity_id', 'code'],
+                name='fleet_notification_unique_problem',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.get_entity_type_display()} #{self.entity_id}: {self.title}'
 
 
 class Contractor(models.Model):
@@ -262,6 +459,37 @@ class Contractor(models.Model):
     class Meta:
         verbose_name = 'Контрагент'
         verbose_name_plural = 'Контрагенты'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class RepairWork(models.Model):
+    WORK_CODE_CHOICES = [
+        ('engine', 'Двигатель'),
+        ('hull', 'Корпус'),
+        ('propulsion', 'Винто-рулевая группа'),
+        ('navigation', 'Навигационное оборудование'),
+        ('electrical', 'Электрооборудование'),
+        ('refrigeration', 'Холодильное оборудование'),
+        ('deck', 'Палубные механизмы'),
+        ('fishing', 'Промысловое оборудование'),
+    ]
+
+    code = models.CharField('Код работы', max_length=30, choices=WORK_CODE_CHOICES, unique=True)
+    name = models.CharField('Наименование работы', max_length=120)
+    base_cost = models.DecimalField(
+        'Базовая стоимость (руб.)',
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        default=0,
+    )
+
+    class Meta:
+        verbose_name = 'Ремонтная работа'
+        verbose_name_plural = 'Ремонтные работы'
         ordering = ['name']
 
     def __str__(self):
@@ -293,6 +521,12 @@ class Maintenance(models.Model):
     contractor_text = models.CharField('Подрядчик (текст)', max_length=200, blank=True,
                                        help_text='Если контрагент не выбран, можно указать вручную')
     documents = models.FileField('Документы', upload_to='maintenance_docs/', blank=True, null=True)
+    repair_works = models.ManyToManyField(
+        RepairWork,
+        blank=True,
+        related_name='maintenances',
+        verbose_name='Состав работ',
+    )
 
     class Meta:
         verbose_name = 'Техническое обслуживание/Ремонт'
@@ -302,6 +536,14 @@ class Maintenance(models.Model):
     def __str__(self):
         return f"{self.get_maintenance_type_display()} {self.ship.name} ({self.start_date})"
 
+    def recalculate_cost(self, commit=True):
+        total = sum(work.base_cost for work in self.repair_works.all())
+        if total:
+            self.cost = total
+            if commit and self.pk:
+                type(self).objects.filter(pk=self.pk).update(cost=total)
+        return total
+
     def clean(self):
         """
         Валидация пересечения дат с рейсами и другими ремонтами.
@@ -310,16 +552,20 @@ class Maintenance(models.Model):
         from django.core.exceptions import ValidationError
         from django.utils import timezone
 
+        if self.end_date and self.end_date < self.start_date:
+            raise ValidationError('Дата окончания ремонта не может быть раньше даты начала.')
+
         # Определяем интервал ремонта
         start = self.start_date
-        end = self.end_date if self.end_date else timezone.now().date() + timezone.timedelta(days=365)
+        end = self.end_date if self.end_date else timezone.now().date() + timezone.timedelta(days=3650)
 
         # Проверка пересечения с другими ремонтами этого судна (исключая текущий)
         overlapping_maintenances = Maintenance.objects.filter(
             ship=self.ship,
             status__in=['in_progress', 'planned'],
             start_date__lt=end,
-            end_date__gt=start
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=start)
         ).exclude(pk=self.pk)
         if overlapping_maintenances.exists():
             raise ValidationError(
@@ -331,8 +577,9 @@ class Maintenance(models.Model):
         overlapping_voyages = Voyage.objects.filter(
             ship=self.ship,
             is_completed=False,
-            start_date__lt=end,
-            end_date__gt=start
+            start_date__lt=timezone.make_aware(datetime.combine(end, time.max)),
+        ).filter(
+            Q(end_date__isnull=True) | Q(end_date__gt=timezone.make_aware(datetime.combine(start, time.min)))
         )
         if overlapping_voyages.exists():
             # Если это аварийный ремонт, разрешаем, но предупреждаем о необходимости досрочного завершения рейса
@@ -388,7 +635,8 @@ class Maintenance(models.Model):
                 ship=self.ship,
                 status='in_progress',
                 start_date__lte=now,
-                end_date__gte=now
+            ).filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=now)
             ).exclude(pk=self.pk).exists()
             if not other_active:
                 # Нет активных ремонтов, определяем статус судна на основе рейсов
@@ -397,8 +645,9 @@ class Maintenance(models.Model):
                 active_voyage = Voyage.objects.filter(
                     ship=self.ship,
                     is_completed=False,
-                    start_date__lte=now,
-                    end_date__gt=now
+                    start_date__date__lte=now,
+                ).filter(
+                    Q(end_date__isnull=True) | Q(end_date__date__gt=now)
                 ).exists()
                 if active_voyage:
                     new_status = 'at_sea'
@@ -411,3 +660,19 @@ class Maintenance(models.Model):
         # (судно остаётся в текущем статусе, возможно, в порту или в море)
 
         super().save(*args, **kwargs)
+
+        if self.status == 'completed' and self.maintenance_type == 'planned':
+            repair_date = self.end_date or self.start_date
+            if repair_date and self.ship.last_repair_date != repair_date:
+                self.ship.last_repair_date = repair_date
+                self.ship.save(update_fields=['last_repair_date'])
+            if repair_date:
+                from .services import ensure_planned_maintenance_for_ship
+
+                ensure_planned_maintenance_for_ship(self.ship, reference_date=repair_date)
+
+@receiver(m2m_changed, sender=Maintenance.repair_works.through)
+def maintenance_repair_works_changed(sender, instance, action, **kwargs):
+    if action in {'post_add', 'post_remove', 'post_clear'}:
+        instance.recalculate_cost(commit=True)
+

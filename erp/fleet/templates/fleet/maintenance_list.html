@@ -14,15 +14,36 @@
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="mb-0">Список ремонтов и ТО</h5>
-        <div>
+        <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="?maintenance_filter=all{% if maintenance_sort %}&maintenance_sort={{ maintenance_sort }}{% endif %}" class="btn btn-outline-secondary {% if maintenance_filter == 'all' %}active{% endif %}">
+                    Все
+                </a>
+                <a href="?maintenance_filter=overdue{% if maintenance_sort %}&maintenance_sort={{ maintenance_sort }}{% endif %}" class="btn btn-outline-secondary {% if maintenance_filter == 'overdue' %}active{% endif %}">
+                    Просроченные
+                </a>
+            </div>
+            <div class="btn-group btn-group-sm" role="group">
+                <a href="?maintenance_sort=date{% if maintenance_filter %}&maintenance_filter={{ maintenance_filter }}{% endif %}" class="btn btn-outline-secondary {% if maintenance_sort == 'date' %}active{% endif %}">
+                    По дате
+                </a>
+                <a href="?maintenance_sort=criticality{% if maintenance_filter %}&maintenance_filter={{ maintenance_filter }}{% endif %}" class="btn btn-outline-secondary {% if maintenance_sort == 'criticality' %}active{% endif %}">
+                    По критичности
+                </a>
+                <a href="?maintenance_sort=ship_name{% if maintenance_filter %}&maintenance_filter={{ maintenance_filter }}{% endif %}" class="btn btn-outline-secondary {% if maintenance_sort == 'ship_name' %}active{% endif %}">
+                    По судну
+                </a>
+            </div>
             {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
             <a href="{% url 'fleet:contractor_list' %}" class="btn btn-sm btn-outline-primary me-2">
                 <i class="bi bi-building"></i> Контрагенты
             </a>
             {% endif %}
+            {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'engineer' %}
             <a href="{% url 'fleet:maintenance_create' %}" class="btn btn-sm btn-success">
                 <i class="bi bi-tools"></i> Подать заявку на ремонт
             </a>
+            {% endif %}
         </div>
     </div>
     <div class="card-body p-0">
@@ -59,12 +80,14 @@
                         </td>
                         <td>{{ maintenance.start_date|date:"d.m.Y" }}</td>
                         <td>{{ maintenance.end_date|date:"d.m.Y"|default:"—" }}</td>
-                        <td>{{ maintenance.cost|floatformat:2 }}</td>
+                        <td>
+                            {{ maintenance.cost|floatformat:2 }}
+                        </td>
                         <td>
                             <a href="{% url 'fleet:maintenance_detail' maintenance.id %}" class="btn btn-sm btn-outline-primary" title="Просмотр">
                                 <i class="bi bi-eye"></i>
                             </a>
-                            {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                            {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'engineer' %}
                             <a href="{% url 'fleet:maintenance_edit' maintenance.id %}" class="btn btn-sm btn-outline-secondary" title="Редактировать">
                                 <i class="bi bi-pencil"></i>
                             </a>

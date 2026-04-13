@@ -16,7 +16,7 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Добавление ТО/ремонта</h5>
+                <h5 class="mb-0">{{ page_title }}</h5>
             </div>
             <div class="card-body">
                 <form method="post">
@@ -25,80 +25,99 @@
                         <label for="ship" class="form-label">Судно *</label>
                         <select class="form-select" id="ship" name="ship" required>
                             {% if ship %}
-                            <option value="{{ ship.id }}" selected>{{ ship.name }} ({{ ship.imo_number }}) - {{
-                                ship.get_actual_status_display }}</option>
+                            <option value="{{ ship.id }}" selected>{{ ship.name }} ({{ ship.imo_number }}) - {{ ship.get_actual_status_display }}</option>
                             {% else %}
                             <option value="">Выберите судно</option>
                             {% for s in ships %}
-                            <option value="{{ s.id }}" {% if maintenance and maintenance.ship.id==s.id %}selected{%
-                                endif %}>{{ s.name }} ({{ s.imo_number }}) - {{ s.get_actual_status_display }}</option>
+                            <option value="{{ s.id }}" {% if maintenance and maintenance.ship.id == s.id %}selected{% endif %}>
+                                {{ s.name }} ({{ s.imo_number }}) - {{ s.get_actual_status_display }}
+                            </option>
                             {% endfor %}
                             {% endif %}
                         </select>
                     </div>
+
                     <div class="mb-3">
                         <label for="maintenance_type" class="form-label">Тип работ *</label>
                         <select class="form-select" id="maintenance_type" name="maintenance_type" required>
                             {% for value, label in maintenance_type_choices %}
-                            <option value="{{ value }}" {% if maintenance and maintenance.maintenance_type==value
-                                %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ value }}" {% if maintenance and maintenance.maintenance_type == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
+
                     <div class="mb-3">
                         <label for="status" class="form-label">Статус *</label>
                         <select class="form-select" id="status" name="status" required>
                             {% for value, label in status_choices %}
-                            <option value="{{ value }}" {% if maintenance and maintenance.status==value %}selected{%
-                                endif %}>{{ label }}</option>
+                            <option value="{{ value }}" {% if maintenance and maintenance.status == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </div>
+
                     <div class="mb-3">
                         <label for="description" class="form-label">Описание работ</label>
-                        <textarea class="form-control" id="description" name="description"
-                            rows="3">{% if maintenance %}{{ maintenance.description }}{% endif %}</textarea>
+                        <textarea class="form-control" id="description" name="description" rows="3">{% if maintenance %}{{ maintenance.description }}{% endif %}</textarea>
                     </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Состав работ</label>
+                        <div class="row g-2">
+                            {% for work in repair_works %}
+                            <div class="col-md-6">
+                                <div class="form-check border rounded p-2">
+                                    <input class="form-check-input" type="checkbox" name="repair_works" value="{{ work.id }}" id="repair_work_{{ work.id }}" {% if work.id in selected_work_ids %}checked{% endif %}>
+                                    <label class="form-check-label ms-1" for="repair_work_{{ work.id }}">
+                                        {{ work.name }}<br>
+                                        <small class="text-muted">{{ work.base_cost|floatformat:2 }} руб.</small>
+                                    </label>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12">
+                                <p class="text-muted mb-0">Справочник ремонтных работ пока пуст.</p>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="start_date" class="form-label">Дата начала *</label>
-                                <input type="date" class="form-control" id="start_date" name="start_date"
-                                    value="{% if maintenance %}{{ maintenance.start_date|date:'Y-m-d' }}{% else %}{{ today|date:'Y-m-d' }}{% endif %}"
-                                    required>
+                                <input type="text" class="form-control" id="start_date" name="start_date" value="{{ start_date_value }}" placeholder="{{ date_input_placeholder }}" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="end_date" class="form-label">Дата окончания (если есть)</label>
-                                <input type="date" class="form-control" id="end_date" name="end_date"
-                                    value="{% if maintenance and maintenance.end_date %}{{ maintenance.end_date|date:'Y-m-d' }}{% endif %}">
+                                <label for="end_date" class="form-label">Дата окончания</label>
+                                <input type="text" class="form-control" id="end_date" name="end_date" value="{{ end_date_value }}" placeholder="{{ date_input_placeholder }}">
                             </div>
                         </div>
                     </div>
+
                     <div class="mb-3">
                         <label for="cost" class="form-label">Стоимость (руб.)</label>
-                        <input type="number" step="0.01" class="form-control" id="cost" name="cost"
-                            value="{% if maintenance %}{{ maintenance.cost }}{% else %}0{% endif %}">
+                        <input type="number" step="0.01" class="form-control" id="cost" name="cost" value="{% if maintenance %}{{ maintenance.cost }}{% else %}0{% endif %}">
+                        <small class="text-muted">Если выбраны работы из состава ремонта, итоговая стоимость будет пересчитана автоматически.</small>
                     </div>
+
                     <div class="mb-3">
-                        <label for="contractor" class="form-label">Подрядчик (выберите из списка)</label>
+                        <label for="contractor" class="form-label">Подрядчик</label>
                         <select class="form-select" id="contractor" name="contractor">
                             <option value="">Не выбран</option>
                             {% for c in contractors %}
-                            <option value="{{ c.id }}" {% if maintenance and maintenance.contractor and
-                                maintenance.contractor.id==c.id %}selected{% endif %}>{{ c.name }}</option>
+                            <option value="{{ c.id }}" {% if maintenance and maintenance.contractor and maintenance.contractor.id == c.id %}selected{% endif %}>{{ c.name }}</option>
                             {% endfor %}
                         </select>
-                        <small class="text-muted">Если подрядчика нет в списке, укажите в поле ниже</small>
+                        <small class="text-muted">Если подрядчика нет в списке, укажите его вручную ниже.</small>
                     </div>
+
                     <div class="mb-3">
                         <label for="contractor_text" class="form-label">Подрядчик (текст)</label>
-                        <input type="text" class="form-control" id="contractor_text" name="contractor_text"
-                            value="{% if maintenance %}{{ maintenance.contractor_text }}{% endif %}"
-                            placeholder="Название организации, контактные данные">
-                        <small class="text-muted">Заполните, если подрядчик не выбран из списка</small>
+                        <input type="text" class="form-control" id="contractor_text" name="contractor_text" value="{% if maintenance %}{{ maintenance.contractor_text }}{% endif %}" placeholder="Название организации, контакты">
                     </div>
+
                     <div class="d-flex justify-content-between">
                         <a href="{% url 'fleet:maintenance_list' %}" class="btn btn-secondary">Отмена</a>
                         <button type="submit" class="btn btn-primary">Сохранить</button>

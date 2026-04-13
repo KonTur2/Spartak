@@ -83,13 +83,14 @@
                                         <span class="badge bg-info text-white">Info</span>
                                     {% endif %}
                                 </td>
-                                <td>
-                                    <strong>{{ notification.title }}</strong>
-                                </td>
+                                 <td>
+                                     <a href="{% url 'fleet:notification_detail' notification.id %}" class="text-decoration-none">
+                                         <strong>{{ notification.title }}</strong>
+                                     </a>
+                                 </td>
                                 <td>{{ notification.message|truncatechars:100 }}</td>
                                 <td>
                                     <span class="badge bg-secondary">{{ notification.get_entity_type_display }}</span>
-                                    <br><small>ID: {{ notification.entity_id }}</small>
                                 </td>
                                 <td>
                                     {% if notification.is_read %}

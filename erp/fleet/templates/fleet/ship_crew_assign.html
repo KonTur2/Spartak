@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+<li class="breadcrumb-item"><a href="{% url 'fleet:ship_detail' ship.id %}">{{ ship.name }}</a></li>
+<li class="breadcrumb-item active">Состав экипажа</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Требования для {{ ship.get_type_display|lower }} судна</h5>
+            </div>
+            <div class="card-body">
+                {% if requirements.requirements %}
+                <ul class="list-group list-group-flush">
+                    {% for item in requirements.requirements %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <span>{{ item.role_display }}</span>
+                        <span class="badge {% if item.missing_count %}bg-danger{% else %}bg-success{% endif %}">
+                            {{ item.eligible_count }} / {{ item.required_count }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <p class="text-muted small mt-3 mb-0">Сохранение недоступно, если обязательные роли не набраны.</p>
+                {% else %}
+                <p class="text-muted mb-0">Для этого типа судна требования не заданы.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Назначение экипажа</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Отметьте сотрудников, которые должны входить в состав экипажа этого судна. Доступны уже назначенные на это судно люди и сотрудники из резерва.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        {% for member in available_crew %}
+                        <div class="col-md-6">
+                            <label class="border rounded p-3 d-block h-100">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="crew_members" value="{{ member.id }}" id="crew_{{ member.id }}" {% if member.id in selected_crew_ids %}checked{% endif %}>
+                                    <span class="form-check-label fw-semibold" for="crew_{{ member.id }}">
+                                        {{ member.user.get_full_name|default:member.user.username }}
+                                    </span>
+                                </div>
+                                <div class="small text-muted mt-2">
+                                    {{ member.get_rank_display }}
+                                    {% if member.contract_end_date %}
+                                    <span class="d-block">Контракт до {{ member.contract_end_date|date:"d.m.Y" }}</span>
+                                    {% else %}
+                                    <span class="d-block">Контракт не указан</span>
+                                    {% endif %}
+                                    {% if member.assigned_ship_id == ship.id %}
+                                    <span class="badge bg-primary mt-2">Уже в составе</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary mt-2">Резерв</span>
+                                    {% endif %}
+                                </div>
+                            </label>
+                        </div>
+                        {% empty %}
+                        <div class="col-12">
+                            <p class="text-muted mb-0">Нет доступных сотрудников. Сначала добавьте людей в резерв на странице экипажа.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'fleet:ship_detail' ship.id %}" class="btn btn-secondary">Назад</a>
+                        <button type="submit" class="btn btn-primary">Сохранить состав</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block breadcrumbs %}
+    <li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+    <li class="breadcrumb-item"><a href="{% url 'fleet:notifications_list' %}">Уведомления</a></li>
+    <li class="breadcrumb-item active">{{ notification.title|truncatechars:50 }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <!-- Ссылка назад -->
+        <div class="mb-3">
+            <a href="{% url 'fleet:notifications_list' %}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left"></i> Назад к списку уведомлений
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-bell"></i> Детали уведомления
+                </h5>
+                {% if notification.severity == 'blocking' %}
+                    <span class="badge bg-danger text-white fs-6">Blocking</span>
+                {% elif notification.severity == 'warning' %}
+                    <span class="badge bg-warning text-dark fs-6">Warning</span>
+                {% elif notification.severity == 'info' %}
+                    <span class="badge bg-info text-white fs-6">Info</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Основная информация -->
+                    <div class="col-md-8">
+                        <h4 class="mb-3">{{ notification.title }}</h4>
+                        
+                        <div class="mb-4">
+                            <h6>Сообщение</h6>
+                            <p class="text-muted mb-0">{{ notification.message|linebreaksbr }}</p>
+                        </div>
+
+                        <div class="mb-3">
+                            <strong>Тип уведомления:</strong>
+                            <p class="mb-0">
+                                <span class="badge bg-secondary">{{ notification.get_entity_type_display }}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Статусы -->
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title">Статусы</h6>
+                                <div class="mb-3">
+                                    <small class="text-muted">Прочитано</small>
+                                    <div>
+                                        {% if notification.is_read %}
+                                            <span class="badge bg-success">Да</span>
+                                        {% else %}
+                                            <span class="badge bg-danger text-white">Нет</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <small class="text-muted">Решено</small>
+                                    <div>
+                                        {% if notification.is_resolved %}
+                                            <span class="badge bg-success">Да</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Нет</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if notification.resolved_at %}
+                                <div>
+                                    <small class="text-muted">Дата решения</small>
+                                    <p class="mb-0 text-muted">{{ notification.resolved_at|date:"d.m.Y H:i" }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <strong>Создано:</strong>
+                        <p class="text-muted mb-0">{{ notification.created_at|date:"d.m.Y H:i" }}</p>
+                    </div>
+                    {% if notification.resolved_at %}
+                    <div class="col-md-4 mb-3">
+                        <strong>Решено:</strong>
+                        <p class="text-muted mb-0">{{ notification.resolved_at|date:"d.m.Y H:i" }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

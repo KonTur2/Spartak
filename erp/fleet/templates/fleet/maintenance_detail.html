@@ -19,7 +19,7 @@
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Детали ремонта</h5>
                 <div>
-                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'engineer' %}
                     <a href="{% url 'fleet:maintenance_edit' maintenance.id %}" class="btn btn-warning btn-sm">
                         <i class="bi bi-pencil"></i> Редактировать
                     </a>
@@ -77,11 +77,21 @@
                     <tr>
                         <th>Стоимость (руб.):</th>
                         <td>
-                            {% if maintenance.cost %}
-                                <strong>{{ maintenance.cost|floatformat:2 }}</strong>
-                            {% else %}
-                                <span class="text-muted">—</span>
-                            {% endif %}
+                            <strong>{{ maintenance.cost|floatformat:2 }}</strong>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Состав работ:</th>
+                        <td>
+                            {% with works=maintenance.repair_works.all %}
+                                {% if works %}
+                                    {% for work in works %}
+                                        <span class="badge bg-light text-dark border me-1 mb-1">{{ work.name }}</span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted">Состав работ не указан</span>
+                                {% endif %}
+                            {% endwith %}
                         </td>
                     </tr>
                     <tr>
@@ -128,6 +138,7 @@
                 {% endif %}
             </div>
         </div>
+
     </div>
 
     <div class="col-lg-4">
@@ -138,7 +149,7 @@
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'engineer' %}
                         {% if maintenance.status != 'completed' %}
                             <a href="{% url 'fleet:maintenance_edit' maintenance.id %}" class="btn btn-warning">
                                 <i class="bi bi-pencil"></i> Редактировать
@@ -169,16 +180,9 @@
             <div class="card-body">
                 <p><strong>Тип:</strong> {{ maintenance.ship.get_type_display }}</p>
                 <p><strong>Статус судна:</strong>
-                    {% if maintenance.ship.status == 'at_sea' %}
-                        <span class="badge bg-success">В море</span>
-                    {% elif maintenance.ship.status == 'in_port' %}
-                        <span class="badge bg-warning">В порту</span>
-                    {% elif maintenance.ship.status == 'under_repair' %}
-                        <span class="badge bg-danger">На ремонте</span>
-                    {% else %}
-                        <span class="badge bg-secondary">{{ maintenance.ship.get_status_display }}</span>
-                    {% endif %}
+                    <span class="badge {{ maintenance.ship.status_badge_class }}">{{ maintenance.ship.actual_status_display }}</span>
                 </p>
+                <p><strong>Местоположение:</strong> {{ maintenance.ship.location_display|default:"—" }}</p>
                 <p><strong>Техническое состояние:</strong> {{ maintenance.ship.technical_condition|default:"—"|truncatechars:100 }}</p>
                 <a href="{% url 'fleet:ship_detail' maintenance.ship.id %}" class="btn btn-sm btn-outline-primary mt-2">Подробнее о судне</a>
             </div>
@@ -187,7 +191,7 @@
 </div>
 
 <!-- Модальное окно для завершения ремонта -->
-{% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+{% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'engineer' %}
 <div class="modal fade" id="completeModal" tabindex="-1" aria-labelledby="completeModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
