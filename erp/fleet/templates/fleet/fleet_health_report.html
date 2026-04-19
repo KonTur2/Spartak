@@ -1,0 +1,555 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">{{ page_title }}</h1>
+        <div>
+            <button class="btn btn-outline-primary" onclick="window.print()">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <a href="{% url 'fleet:fleet_dashboard' %}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> На дашборд
+            </a>
+        </div>
+    </div>
+
+    <!-- Краткая управленческая сводка -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Краткая управленческая сводка</h5>
+        </div>
+        <div class="card-body">
+            <p class="lead mb-0">
+                Из {{ total_ships }} судов <strong>{{ ships_ready }}</strong> готовы к рейсу ({{ ready_percentage }}%),
+                <strong>{{ ships_crew_shortage }}</strong> имеют нехватку экипажа,
+                <strong>{{ ships_under_repair }}</strong> на ремонте,
+                <strong>{{ ships_at_sea }}</strong> в рейсе.
+                Активных рейсов: {{ voyages_active }}, из них просрочено {{ voyages_overdue }}.
+            </p>
+        </div>
+    </div>
+
+    <!-- KPI показатели -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">KPI флота</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-success text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ ready_percentage }}%</h2>
+                            <p class="mb-0">Готовых судов</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-danger text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ crew_shortage_percentage }}%</h2>
+                            <p class="mb-0">С нехваткой экипажа</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-info text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ voyages_active }}</h2>
+                            <p class="mb-0">Активных рейсов</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Текстовая сводка -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Общая оценка состояния флота</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>Готовы к рейсу</span>
+                            <span class="badge bg-success rounded-pill">{{ ships_ready }} из {{ total_ships }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>На ремонте</span>
+                            <span class="badge bg-primary rounded-pill">{{ ships_under_repair }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>В рейсе</span>
+                            <span class="badge bg-dark rounded-pill">{{ ships_at_sea }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>С нехваткой экипажа</span>
+                            <span class="badge bg-info rounded-pill">{{ ships_crew_shortage }}</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>В порту</span>
+                            <span class="badge bg-light text-dark rounded-pill">{{ ships_in_port }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>С предупреждениями</span>
+                            <span class="badge bg-warning text-dark rounded-pill">{{ ships_with_warning }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>Не готовы к рейсу</span>
+                            <span class="badge bg-danger rounded-pill">{{ ships_not_ready }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>С не настроенными требованиями</span>
+                            <span class="badge bg-secondary rounded-pill">{{ ships_crew_unconfigured }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Состояние по экипажу -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Состояние по экипажу</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-success text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ ships_crew_complete }}</h2>
+                            <p class="mb-0">Укомплектованы</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-danger text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ ships_crew_shortage }}</h2>
+                            <p class="mb-0">С нехваткой экипажа</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-warning text-dark">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ ships_crew_unconfigured }}</h2>
+                            <p class="mb-0">С не настроенными требованиями</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Состояние рейсов -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Состояние рейсов</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-info text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ voyages_active }}</h2>
+                            <p class="mb-0">Активных рейсов</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-danger text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ voyages_overdue }}</h2>
+                            <p class="mb-0">Просроченных</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-warning text-dark">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ voyages_too_long }}</h2>
+                            <p class="mb-0">Слишком долгих</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Состояние ремонтов -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">Состояние ремонтов</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ maintenances_in_progress }}</h2>
+                            <p class="mb-0">В работе</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-danger text-white">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ maintenances_overdue }}</h2>
+                            <p class="mb-0">Просроченных</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-warning text-dark">
+                        <div class="card-body text-center">
+                            <h2 class="display-6">{{ maintenances_too_long }}</h2>
+                            <p class="mb-0">Затянувшихся</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Критические проблемы -->
+    <div class="card mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">Критические проблемы (blocking)</h5>
+        </div>
+        <div class="card-body">
+            {% if ships_with_blocking %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Судно</th>
+                            <th>Причина</th>
+                            <th>Детали</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in ships_with_blocking %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' item.ship.id %}">{{ item.ship.name }}</a>
+                            </td>
+                            <td>
+                                {% for reason in item.reasons %}
+                                    <div>{{ reason }}</div>
+                                {% endfor %}
+                                {% if item.total_issues > 2 %}
+                                    <small class="text-muted">и еще {{ item.total_issues|add:"-2" }} проблем</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.details %}
+                                    {% if item.details|length == 1 %}
+                                        {% if item.details.0 is string %}
+                                            {{ item.details.0 }}
+                                        {% else %}
+                                            <ul class="mb-0">
+                                            {% for detail in item.details.0 %}
+                                                <li>{{ detail }}</li>
+                                            {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                    {% else %}
+                                        <ul class="mb-0">
+                                        {% for detail in item.details %}
+                                            <li>
+                                                {% if detail is string %}
+                                                    {{ detail }}
+                                                {% else %}
+                                                    {% for subdetail in detail %}
+                                                        <div>{{ subdetail }}</div>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' item.ship.id %}" class="btn btn-sm btn-outline-primary">Карточка</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success mb-0">
+                <i class="bi bi-check-circle"></i> Критических проблем нет.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Предупреждения -->
+    <div class="card mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">Предупреждения (warning)</h5>
+        </div>
+        <div class="card-body">
+            {% if ships_with_warning_list %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Судно</th>
+                            <th>Причина</th>
+                            <th>Детали</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in ships_with_warning_list %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' item.ship.id %}">{{ item.ship.name }}</a>
+                            </td>
+                            <td>
+                                {% for reason in item.reasons %}
+                                    <div>{{ reason }}</div>
+                                {% endfor %}
+                                {% if item.total_issues > 2 %}
+                                    <small class="text-muted">и еще {{ item.total_issues|add:"-2" }} проблем</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if item.details %}
+                                    {% if item.details|length == 1 %}
+                                        {% if item.details.0 is string %}
+                                            {{ item.details.0 }}
+                                        {% else %}
+                                            <ul class="mb-0">
+                                            {% for detail in item.details.0 %}
+                                                <li>{{ detail }}</li>
+                                            {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                    {% else %}
+                                        <ul class="mb-0">
+                                        {% for detail in item.details %}
+                                            <li>
+                                                {% if detail is string %}
+                                                    {{ detail }}
+                                                {% else %}
+                                                    {% for subdetail in detail %}
+                                                        <div>{{ subdetail }}</div>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' item.ship.id %}" class="btn btn-sm btn-outline-primary">Карточка</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success mb-0">
+                <i class="bi bi-check-circle"></i> Предупреждений нет.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Проблемы по экипажу -->
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">Проблемы по экипажу</h5>
+        </div>
+        <div class="card-body">
+            {% if crew_problems %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Судно</th>
+                            <th>Проблема</th>
+                            <th>Детали</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for problem in crew_problems %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' problem.ship.id %}">{{ problem.ship.name }}</a>
+                            </td>
+                            <td>
+                                {% if problem.reason %}
+                                    {{ problem.reason }}
+                                {% elif problem.missing_roles %}
+                                    <ul class="mb-0">
+                                    {% for role in problem.missing_roles %}
+                                        <li>{{ role.role_display }} (требуется: {{ role.required_count }}, есть: {{ role.eligible_count }})</li>
+                                    {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if problem.details %}
+                                    {% if problem.details is string %}
+                                        {{ problem.details }}
+                                    {% else %}
+                                        <ul class="mb-0">
+                                        {% for detail in problem.details %}
+                                            <li>{{ detail }}</li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{% url 'fleet:ship_detail' problem.ship.id %}" class="btn btn-sm btn-outline-primary">Карточка</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success mb-0">
+                <i class="bi bi-check-circle"></i> Проблем с экипажем нет.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Рейсы и ремонты -->
+    <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Рейсы и ремонты с проблемами</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-danger text-white">
+                            <h6 class="mb-0">Просроченные рейсы</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if overdue_voyages %}
+                            <ul class="list-group list-group-flush">
+                                {% for issue in overdue_voyages %}
+                                <li class="list-group-item">
+                                    <a href="{% url 'fleet:ship_detail' issue.object.ship.id %}">{{ issue.object.ship.name }}</a>
+                                    — рейс с {{ issue.object.start_date|date:"d.m.Y" }} (просрочен)
+                                    <br><small>{{ issue.reason }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="mb-0 text-success"><i class="bi bi-check-circle"></i> Просроченных рейсов нет.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0">Слишком долгие рейсы</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if too_long_voyages %}
+                            <ul class="list-group list-group-flush">
+                                {% for issue in too_long_voyages %}
+                                <li class="list-group-item">
+                                    <a href="{% url 'fleet:ship_detail' issue.object.ship.id %}">{{ issue.object.ship.name }}</a>
+                                    — рейс с {{ issue.object.start_date|date:"d.m.Y" }} (слишком долго)
+                                    <br><small>{{ issue.reason }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="mb-0 text-success"><i class="bi bi-check-circle"></i> Слишком долгих рейсов нет.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-danger text-white">
+                            <h6 class="mb-0">Просроченные старты ремонтов</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if overdue_maintenances %}
+                            <ul class="list-group list-group-flush">
+                                {% for issue in overdue_maintenances %}
+                                <li class="list-group-item">
+                                    <a href="{% url 'fleet:ship_detail' issue.object.ship.id %}">{{ issue.object.ship.name }}</a>
+                                    — ремонт {{ issue.object.get_maintenance_type_display }} (просрочен старт)
+                                    <br><small>{{ issue.reason }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="mb-0 text-success"><i class="bi bi-check-circle"></i> Просроченных стартов ремонтов нет.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0">Затянувшиеся ремонты</h6>
+                        </div>
+                        <div class="card-body">
+                            {% if too_long_maintenances %}
+                            <ul class="list-group list-group-flush">
+                                {% for issue in too_long_maintenances %}
+                                <li class="list-group-item">
+                                    <a href="{% url 'fleet:ship_detail' issue.object.ship.id %}">{{ issue.object.ship.name }}</a>
+                                    — ремонт {{ issue.object.get_maintenance_type_display }} (затянулся)
+                                    <br><small>{{ issue.reason }}</small>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="mb-0 text-success"><i class="bi bi-check-circle"></i> Затянувшихся ремонтов нет.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-muted small">
+        Отчёт сформирован {{ current_date|date:"d.m.Y H:i" }}
+    </div>
+</div>
+{% endblock %}

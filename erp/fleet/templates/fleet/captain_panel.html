@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}Журнал капитана{% endblock %}
+
+{% block page_title %}Журнал технических сообщений{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item active">Журнал капитана</li>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Судно и текущие данные</h5>
+            </div>
+            <div class="card-body">
+                {% if not is_captain %}
+                <form method="get" class="mb-4">
+                    <label for="ship_id" class="form-label">Судно</label>
+                    <div class="input-group">
+                        <select name="ship_id" id="ship_id" class="form-select">
+                            {% for item in available_ships %}
+                            <option value="{{ item.id }}"{% if item.id == selected_ship_id %} selected{% endif %}>{{ item.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-outline-primary">Открыть</button>
+                    </div>
+                </form>
+                {% endif %}
+
+                {% if ship %}
+                <table class="table table-sm">
+                    <tr>
+                        <th>Судно:</th>
+                        <td>{{ ship.name }}</td>
+                    </tr>
+                    <tr>
+                        <th>IMO:</th>
+                        <td>{{ ship.imo_number }}</td>
+                    </tr>
+                    <tr>
+                        <th>Текущая наработка:</th>
+                        <td>{% if current_engine_hours is not None %}{{ current_engine_hours }} ч{% else %}—{% endif %}</td>
+                    </tr>
+                    <tr>
+                        <th>Последний ремонт:</th>
+                        <td>{{ ship.last_repair_date|date:"d.m.Y"|default:"—" }}</td>
+                    </tr>
+                </table>
+                {% else %}
+                <div class="alert alert-warning mb-0">
+                    Для пользователя пока не назначено судно капитана.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5 class="mb-0">Новая техническая запись</h5>
+            </div>
+            <div class="card-body">
+                {% if ship %}
+                <form method="post">
+                    {% csrf_token %}
+                    {% if not is_captain %}
+                    <input type="hidden" name="ship_id" value="{{ ship.id }}">
+                    {% endif %}
+                    <div class="mb-3">
+                        <label for="note" class="form-label">Сообщение для диспетчера / инженера</label>
+                        <textarea class="form-control" id="note" name="note" rows="5" placeholder="Опишите поломку, неисправность или другое техническое замечание" required>{{ submitted_note }}</textarea>
+                    </div>
+                    <p class="text-muted small mb-3">Наработка подставляется автоматически из текущих данных судна.</p>
+                    <button type="submit" class="btn btn-primary">Отправить сообщение</button>
+                </form>
+                {% else %}
+                <p class="text-muted mb-0">Форма станет доступна после назначения судна.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Последние сообщения</h5>
+                {% if ship %}
+                <span class="badge bg-secondary">{{ logs|length }}</span>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if ship and logs %}
+                <div class="list-group list-group-flush">
+                    {% for log in logs %}
+                    <div class="list-group-item px-0">
+                        <div class="d-flex justify-content-between flex-wrap gap-2">
+                            <strong>{{ log.engine_hours }} ч</strong>
+                            <small class="text-muted">{{ log.recorded_at|date:"d.m.Y H:i" }}</small>
+                        </div>
+                        <div class="small text-muted mt-1">
+                            Автор: {{ log.author.get_full_name|default:log.author.username|default:"—" }}
+                        </div>
+                        {% if log.note %}
+                        <p class="mb-0 mt-2">{{ log.note|linebreaksbr }}</p>
+                        {% else %}
+                        <p class="mb-0 mt-2 text-muted">Без заметки.</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% elif ship %}
+                <p class="text-muted mb-0">Технических записей пока нет.</p>
+                {% else %}
+                <p class="text-muted mb-0">Записи появятся после назначения судна.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

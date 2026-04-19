@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block title %}Журнал технических записей - {{ ship.name }}{% endblock %}
+
+{% block page_title %}Журнал технических записей - {{ ship.name }}{% endblock %}
+
+{% block breadcrumbs %}
+<li class="breadcrumb-item"><a href="{% url 'fleet:fleet_dashboard' %}">Флот</a></li>
+<li class="breadcrumb-item"><a href="{% url 'fleet:ship_detail' ship.id %}">{{ ship.name }}</a></li>
+<li class="breadcrumb-item active">Журнал технических записей</li>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">Технические сообщения по судну {{ ship.name }}</h5>
+        <div class="d-flex gap-2">
+            {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'dispatcher' or user.role.role == 'engineer' %}
+            <a href="{% url 'fleet:captain_messages_list' %}" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-chat-left-text"></i> Все сообщения капитанов
+            </a>
+            {% endif %}
+            <a href="{% url 'fleet:ship_detail' ship.id %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Назад к судну
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if logs %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Дата и время</th>
+                        <th>Наработка</th>
+                        <th>Сообщение</th>
+                        <th>Автор</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>{{ log.recorded_at|date:"d.m.Y H:i" }}</td>
+                        <td>{{ log.engine_hours }} ч</td>
+                        <td>{{ log.note|default:"—" }}</td>
+                        <td>
+                            {% if log.author %}
+                                {{ log.author.get_full_name|default:log.author.username }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <div class="mb-3">
+                <i class="bi bi-journal-x" style="font-size: 3rem; color: #6c757d;"></i>
+            </div>
+            <h5 class="text-muted">Технических сообщений пока нет</h5>
+            <p class="text-muted mb-0">Для этого судна ещё не добавлено ни одной записи капитана.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

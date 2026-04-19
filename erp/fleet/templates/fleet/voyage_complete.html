@@ -28,7 +28,7 @@
                     </div>
                     <div class="mb-3">
                         <label for="end_date" class="form-label">Дата возвращения</label>
-                        <input type="datetime-local" class="form-control" id="end_date" name="end_date" value="{{ voyage.end_date|date:'Y-m-d\TH:i'|default:'' }}">
+                        <input type="text" class="form-control" id="end_date" name="end_date" value="{{ end_date_value }}" placeholder="{{ datetime_input_placeholder }}">
                     </div>
                     <div class="d-flex justify-content-between">
                         <a href="{% url 'fleet:ship_detail' voyage.ship.id %}" class="btn btn-secondary">Отмена</a>

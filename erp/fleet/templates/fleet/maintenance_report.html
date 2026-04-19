@@ -23,13 +23,13 @@
             <form method="get" class="row g-3">
                 <div class="col-md-3">
                     <label for="start_date" class="form-label">Дата с</label>
-                    <input type="date" class="form-control" id="start_date" name="start_date"
-                           value="{{ start_date|date:'Y-m-d' }}">
+                    <input type="text" class="form-control" id="start_date" name="start_date"
+                           value="{{ start_date_value }}" placeholder="{{ date_input_placeholder }}">
                 </div>
                 <div class="col-md-3">
                     <label for="end_date" class="form-label">Дата по</label>
-                    <input type="date" class="form-control" id="end_date" name="end_date"
-                           value="{{ end_date|date:'Y-m-d' }}">
+                    <input type="text" class="form-control" id="end_date" name="end_date"
+                           value="{{ end_date_value }}" placeholder="{{ date_input_placeholder }}">
                 </div>
                 <div class="col-md-3">
                     <label for="status" class="form-label">Статус</label>
@@ -74,8 +74,8 @@
                             <td>{{ m.end_date|date:"d.m.Y"|default:"—" }}</td>
                             <td>
                                 <span class="badge
-                                    {% if m.status == 'planned' %}bg-warning
-                                    {% elif m.status == 'in_progress' %}bg-info
+                                    {% if m.status == 'in_progress' %}bg-warning
+                                    {% elif m.status == 'planned' %}bg-info
                                     {% else %}bg-success{% endif %}">
                                     {{ m.get_status_display }}
                                 </span>

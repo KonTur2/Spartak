@@ -65,6 +65,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'fleet.context_processors.fleet_notification_badges',
             ],
         },
     },
@@ -112,13 +113,20 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru'
 
 TIME_ZONE = 'UTC'
 
 USE_I18N = True
 
 USE_TZ = True
+
+DATE_FORMAT = 'd.m.Y'
+SHORT_DATE_FORMAT = 'd.m.y'
+DATETIME_FORMAT = 'd.m.Y H:i'
+SHORT_DATETIME_FORMAT = 'd.m.y H:i'
+DATE_INPUT_FORMATS = ['%d.%m.%Y', '%d.%m.%y', '%Y-%m-%d']
+DATETIME_INPUT_FORMATS = ['%d.%m.%Y %H:%M', '%d.%m.%y %H:%M', '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M:%S']
 
 
 # Static files (CSS, JavaScript, Images)

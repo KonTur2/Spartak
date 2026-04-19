@@ -51,6 +51,16 @@
                         <label for="technical_condition" class="form-label">Техническое состояние</label>
                         <textarea class="form-control" id="technical_condition" name="technical_condition" rows="3">{{ ship.technical_condition|default:'' }}</textarea>
                     </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="engine_hours" class="form-label">Наработка двигателя, ч</label>
+                            <input type="number" class="form-control" id="engine_hours" name="engine_hours" min="0" step="1" value="{{ ship.engine_hours|default:'' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="last_repair_date" class="form-label">Дата последнего ремонта</label>
+                            <input type="text" class="form-control" id="last_repair_date" name="last_repair_date" value="{% if last_repair_date_value %}{{ last_repair_date_value }}{% else %}{{ ship.last_repair_date|date:'d.m.Y'|default:'' }}{% endif %}" placeholder="{{ date_input_placeholder }}">
+                        </div>
+                    </div>
                     <div class="d-flex justify-content-between">
                         <a href="{% if ship %}{% url 'fleet:ship_detail' ship.id %}{% else %}{% url 'fleet:fleet_dashboard' %}{% endif %}" class="btn btn-secondary">Отмена</a>
                         <button type="submit" class="btn btn-primary">Сохранить</button>

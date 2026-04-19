@@ -19,6 +19,36 @@
             </div>
             <div class="card-body">
                 <p class="text-muted">Форма создания рейса. В реальном проекте будет реализована с помощью Django Forms.</p>
+                {% if ship and ship.readiness %}
+                <div class="alert {% if ship.readiness.is_ready %}alert-success{% else %}alert-warning{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <strong>Готовность судна "{{ ship.name }}" к рейсу:</strong>
+                            {% if ship.readiness.is_ready %}
+                                готово
+                            {% else %}
+                                требуется проверка
+                            {% endif %}
+                        </div>
+                        <span class="badge {{ ship.status_badge_class }}">{{ ship.actual_status_display }}</span>
+                    </div>
+                    <div class="small mt-2">Текущее местоположение: {{ ship.location_display }}</div>
+                    {% if ship.readiness.blocking_reasons %}
+                    <ul class="mb-0 mt-2">
+                        {% for reason in ship.readiness.blocking_reasons %}
+                        <li>{{ reason }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% if ship.readiness.warnings %}
+                    <ul class="mb-0 mt-2">
+                        {% for warning in ship.readiness.warnings %}
+                        <li>{{ warning }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </div>
+                {% endif %}
                 <form method="post">
                     {% csrf_token %}
                     <div class="mb-3">
@@ -38,13 +68,13 @@
                     </div>
                     <div class="mb-3">
                         <label for="start_date" class="form-label">Дата и время убытия</label>
-                        <input type="datetime-local" class="form-control" id="start_date" name="start_date"
-                               value="{{ request.POST.start_date|default:'' }}">
+                        <input type="text" class="form-control" id="start_date" name="start_date"
+                               value="{{ start_date_value }}" placeholder="{{ datetime_input_placeholder }}">
                     </div>
                     <div class="mb-3">
                         <label for="end_date" class="form-label">Дата и время прибытия (опционально)</label>
-                        <input type="datetime-local" class="form-control" id="end_date" name="end_date"
-                               value="{{ request.POST.end_date|default:'' }}">
+                        <input type="text" class="form-control" id="end_date" name="end_date"
+                               value="{{ end_date_value }}" placeholder="{{ datetime_input_placeholder }}">
                     </div>
                     <div class="mb-3">
                         <label for="crew" class="form-label">Экипаж (можно выбрать несколько)</label>

@@ -11,12 +11,11 @@
 
 {% block content %}
 <div class="row">
-    <!-- Статистика -->
     <div class="col-md-3 mb-4">
         <div class="card border-primary">
             <div class="card-body text-center">
                 <h5 class="card-title">Всего судов</h5>
-                <h2 class="text-primary">{{ ships.count }}</h2>
+                <h2 class="text-primary">{{ total_ships }}</h2>
             </div>
         </div>
     </div>
@@ -44,19 +43,166 @@
             </div>
         </div>
     </div>
+    <div class="col-md-3 mb-4">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <h5 class="card-title">Готовы к рейсу</h5>
+                <h2 class="text-info">{{ ships_ready }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle"></i> Проблемные объекты
+                </h5>
+                <span class="badge bg-light text-danger">{{ problematic_total }} проблем</span>
+            </div>
+            <div class="card-body">
+                {% if problematic_total %}
+                <div class="d-flex gap-2 flex-wrap mb-3">
+                    <span class="badge bg-danger text-white">Blocking: {{ problematic_summary.blocking }}</span>
+                    <span class="badge bg-warning text-dark">Warning: {{ problematic_summary.warning }}</span>
+                    <span class="badge bg-info text-dark">Info: {{ problematic_summary.info }}</span>
+                </div>
+                {% endif %}
+                {% if problematic.ships or problematic.voyages or problematic.maintenances or problematic.crew %}
+                <div class="row">
+                    <div class="col-md-3">
+                        <h6><i class="bi bi-ship"></i> Суда</h6>
+                        {% if problematic.ships %}
+                        <div class="list-group list-group-flush">
+                            {% for item in problematic.ships|slice:":3" %}
+                            <a href="{% url 'fleet:ship_detail' item.object.id %}" class="list-group-item list-group-item-action py-2">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <strong>{{ item.object.name }}</strong>
+                                    <small class="text-danger">{{ item.reason }}</small>
+                                </div>
+                                <small class="text-muted">{{ item.details|first|default:"" }}</small>
+                            </a>
+                            {% endfor %}
+                            {% if problematic.ships|length > 3 %}
+                            <div class="list-group-item py-2 text-center">
+                                <small>и ещё {{ problematic.ships|length|add:"-3" }} судов</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small">Нет проблем</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-3">
+                        <h6><i class="bi bi-geo-alt"></i> Рейсы</h6>
+                        {% if problematic.voyages %}
+                        <div class="list-group list-group-flush">
+                            {% for item in problematic.voyages|slice:":3" %}
+                            <a href="{% url 'fleet:voyage_edit' item.object.id %}" class="list-group-item list-group-item-action py-2">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <strong>{{ item.object.ship.name }}</strong>
+                                    <small class="text-warning">{{ item.reason }}</small>
+                                </div>
+                                <small class="text-muted">{{ item.details }}</small>
+                            </a>
+                            {% endfor %}
+                            {% if problematic.voyages|length > 3 %}
+                            <div class="list-group-item py-2 text-center">
+                                <small>и ещё {{ problematic.voyages|length|add:"-3" }} рейсов</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small">Нет проблем</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-3">
+                        <h6><i class="bi bi-tools"></i> Ремонты</h6>
+                        {% if problematic.maintenances %}
+                        <div class="list-group list-group-flush">
+                            {% for item in problematic.maintenances|slice:":3" %}
+                            <a href="{% url 'fleet:maintenance_detail' item.object.id %}" class="list-group-item list-group-item-action py-2">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <strong>{{ item.object.ship.name }}</strong>
+                                    <small class="text-warning">{{ item.reason }}</small>
+                                </div>
+                                <small class="text-muted">{{ item.details }}</small>
+                            </a>
+                            {% endfor %}
+                            {% if problematic.maintenances|length > 3 %}
+                            <div class="list-group-item py-2 text-center">
+                                <small>и ещё {{ problematic.maintenances|length|add:"-3" }} ремонтов</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small">Нет проблем</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-md-3">
+                        <h6><i class="bi bi-people"></i> Экипаж</h6>
+                        {% if problematic.crew %}
+                        <div class="list-group list-group-flush">
+                            {% for item in problematic.crew|slice:":3" %}
+                            <a href="{% url 'fleet:crew_list' %}?contract_status=expired" class="list-group-item list-group-item-action py-2">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <strong>{{ item.object.user.get_full_name|default:item.object.user.username }}</strong>
+                                    <small class="text-danger">{{ item.reason }}</small>
+                                </div>
+                                <small class="text-muted">{{ item.details }}</small>
+                            </a>
+                            {% endfor %}
+                            {% if problematic.crew|length > 3 %}
+                            <div class="list-group-item py-2 text-center">
+                                <small>и ещё {{ problematic.crew|length|add:"-3" }} сотрудников</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted small">Нет проблем</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">Проблемных объектов не обнаружено</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row">
-    <!-- Список судов -->
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Судна</h5>
-                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
-                <a href="{% url 'fleet:ship_create' %}" class="btn btn-sm btn-primary">
-                    <i class="bi bi-plus-circle"></i> Добавить судно
-                </a>
-                {% endif %}
+                <h5 class="mb-0">Суда</h5>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?ship_filter=all{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if ship_filter == 'all' %}active{% endif %}">Все</a>
+                        <a href="?ship_filter=ready{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if ship_filter == 'ready' %}active{% endif %}">Готовые</a>
+                        <a href="?ship_filter=blocking{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if ship_filter == 'blocking' %}active{% endif %}">Неготовые</a>
+                        <a href="?ship_filter=warning{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if ship_filter == 'warning' %}active{% endif %}">С warning</a>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?crew_filter=all{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if crew_filter == 'all' %}active{% endif %}">Все по составу</a>
+                        <a href="?crew_filter=complete{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if crew_filter == 'complete' %}active{% endif %}">Укомплектованные</a>
+                        <a href="?crew_filter=shortage{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if crew_filter == 'shortage' %}active{% endif %}">С нехваткой</a>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?ship_sort=name{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}" class="btn btn-outline-secondary {% if ship_sort == 'name' %}active{% endif %}">По названию</a>
+                        <a href="?ship_sort=criticality{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}" class="btn btn-outline-secondary {% if ship_sort == 'criticality' %}active{% endif %}">По критичности</a>
+                    </div>
+                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                    <a href="{% url 'fleet:ship_create' %}" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plus-circle"></i> Добавить судно
+                    </a>
+                    {% endif %}
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -67,6 +213,8 @@
                                 <th>Тип</th>
                                 <th>Статус</th>
                                 <th>Местоположение</th>
+                                <th>Состав экипажа</th>
+                                <th>Готовность</th>
                                 <th>Действия</th>
                             </tr>
                         </thead>
@@ -78,32 +226,26 @@
                                     <small class="text-muted">IMO: {{ ship.imo_number }}</small>
                                 </td>
                                 <td>{{ ship.get_type_display }}</td>
+                                <td><span class="badge {{ ship.status_badge_class }}">{{ ship.actual_status_display }}</span></td>
+                                <td>{{ ship.location_display|default:"—" }}</td>
+                                <td><span class="badge {{ ship.crew_status_class }}">{{ ship.crew_status_display }}</span></td>
                                 <td>
-                                    {% if ship.status == 'at_sea' %}
-                                        <span class="badge bg-success">В море</span>
-                                    {% elif ship.status == 'in_port' %}
-                                        <span class="badge bg-warning">В порту</span>
-                                    {% elif ship.status == 'under_repair' %}
-                                        <span class="badge bg-danger">На ремонте</span>
+                                    {% if ship.readiness.is_ready %}
+                                    <span class="badge bg-success">Готово</span>
                                     {% else %}
-                                        <span class="badge bg-secondary">{{ ship.get_status_display }}</span>
+                                    <span class="badge bg-danger text-white">Не готово</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ ship.current_location|default:"—" }}</td>
                                 <td>
-                                    <a href="{% url 'fleet:ship_detail' ship.id %}" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
+                                    <a href="{% url 'fleet:ship_detail' ship.id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>
                                     {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
-                                    <a href="{% url 'fleet:ship_edit' ship.id %}" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-pencil"></i>
-                                    </a>
+                                    <a href="{% url 'fleet:ship_edit' ship.id %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></a>
                                     {% endif %}
                                 </td>
                             </tr>
                             {% empty %}
                             <tr>
-                                <td colspan="5" class="text-center py-4">Нет данных о судах</td>
+                                <td colspan="7" class="text-center py-4">Нет данных о судах</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -112,10 +254,20 @@
             </div>
         </div>
 
-        <!-- Текущие рейсы -->
         <div class="card mt-4">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">Текущие рейсы</h5>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?voyage_filter=current{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if voyage_filter == 'current' %}active{% endif %}">Все текущие</a>
+                        <a href="?voyage_filter=overdue{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}{% if voyage_sort %}&voyage_sort={{ voyage_sort }}{% endif %}" class="btn btn-outline-secondary {% if voyage_filter == 'overdue' %}active{% endif %}">Просроченные</a>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <a href="?voyage_sort=date{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}" class="btn btn-outline-secondary {% if voyage_sort == 'date' %}active{% endif %}">По дате</a>
+                        <a href="?voyage_sort=criticality{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}" class="btn btn-outline-secondary {% if voyage_sort == 'criticality' %}active{% endif %}">По критичности</a>
+                        <a href="?voyage_sort=ship_name{% if ship_filter %}&ship_filter={{ ship_filter }}{% endif %}{% if ship_sort %}&ship_sort={{ ship_sort }}{% endif %}{% if voyage_filter %}&voyage_filter={{ voyage_filter }}{% endif %}{% if crew_filter %}&crew_filter={{ crew_filter }}{% endif %}" class="btn btn-outline-secondary {% if voyage_sort == 'ship_name' %}active{% endif %}">По судну</a>
+                    </div>
+                </div>
             </div>
             <div class="card-body">
                 {% if current_voyages %}
@@ -133,14 +285,16 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <small>Статус: <span class="badge bg-info">В процессе</span></small>
                             <div>
-                                {% if user.role.role == 'director' %}
+                                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'dispatcher' %}
                                 <a href="{% url 'fleet:voyage_edit' voyage.id %}" class="btn btn-sm btn-outline-primary me-2">
                                     <i class="bi bi-pencil"></i> Редактировать
                                 </a>
                                 {% endif %}
+                                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'dispatcher' %}
                                 <a href="{% url 'fleet:voyage_complete' voyage.id %}" class="btn btn-sm btn-outline-success">
                                     Завершить рейс
                                 </a>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -149,7 +303,7 @@
                 {% else %}
                 <p class="text-muted">Нет активных рейсов</p>
                 {% endif %}
-                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'dispatcher' %}
                 <div class="mt-3">
                     <a href="{% url 'fleet:voyage_create' %}" class="btn btn-sm btn-primary">
                         <i class="bi bi-plus-circle"></i> Создать рейс
@@ -160,9 +314,7 @@
         </div>
     </div>
 
-    <!-- Боковая панель -->
     <div class="col-lg-4">
-        <!-- Последние ТО/ремонты -->
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">Последние ТО/ремонты</h5>
@@ -174,27 +326,26 @@
                     <div class="list-group-item px-0">
                         <div class="d-flex w-100 justify-content-between">
                             <h6 class="mb-1">{{ maint.ship.name }}</h6>
-                            <small class="text-muted">{{ maint.date|date:"d.m.Y" }}</small>
+                            <small class="text-muted">{{ maint.start_date|date:"d.m.Y" }}</small>
                         </div>
                         <p class="mb-1">{{ maint.description|truncatechars:60 }}</p>
-                        <small class="text-muted">{{ maint.get_maintenance_type_display }} • {{ maint.cost }} руб.</small>
+                        <small class="text-muted">{{ maint.get_maintenance_type_display }} • {{ maint.cost|floatformat:2 }} руб.</small>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
                 <p class="text-muted">Нет записей о ТО</p>
                 {% endif %}
-                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+                {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'engineer' %}
                 <div class="mt-3">
                     <a href="{% url 'fleet:maintenance_create' %}" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-tools"></i> Добавить ТО
+                        <i class="bi bi-tools"></i> Подать заявку на ремонт
                     </a>
                 </div>
                 {% endif %}
             </div>
         </div>
 
-        <!-- Быстрые действия -->
         <div class="card mt-4">
             <div class="card-header">
                 <h5 class="mb-0">Быстрые действия</h5>
@@ -204,19 +355,23 @@
                     <a href="{% url 'fleet:crew_list' %}" class="btn btn-outline-secondary">
                         <i class="bi bi-people"></i> Просмотр экипажа
                     </a>
+                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'dispatcher' %}
                     <a href="{% url 'fleet:voyage_create' %}" class="btn btn-outline-primary">
                         <i class="bi bi-ship"></i> Новый рейс
                     </a>
+                    {% endif %}
+                    {% if user.role.role == 'director' or user.role.role == 'fleet_manager' or user.role.role == 'engineer' %}
                     <a href="{% url 'fleet:maintenance_create' %}" class="btn btn-outline-warning">
                         <i class="bi bi-tools"></i> Новое ТО
                     </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
-        <!-- Отчеты -->
+
         <div class="card mt-4">
             <div class="card-header">
-                <h5 class="mb-0">Отчеты</h5>
+                <h5 class="mb-0">Отчёты</h5>
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">

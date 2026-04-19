@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% load static %}
 
 {% block title %}{{ page_title }}{% endblock %}
 
@@ -16,50 +15,66 @@
     <div class="col-lg-8">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Добавление члена экипажа</h5>
+                <h5 class="mb-0">{{ page_title }}</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Заполните данные нового члена экипажа. Все поля обязательны, кроме примечаний.</p>
+                <p class="text-muted">
+                    {% if crew_member %}
+                    Здесь можно изменить данные сотрудника и назначить его на судно или вернуть в резерв.
+                    {% else %}
+                    Здесь можно добавить нового сотрудника экипажа сразу на судно или в кадровый резерв.
+                    {% endif %}
+                </p>
                 <form method="post">
                     {% csrf_token %}
+                    {% if not crew_member %}
                     <div class="mb-3">
                         <label for="username" class="form-label">Логин</label>
                         <input type="text" class="form-control" id="username" name="username" required>
                     </div>
+                    {% endif %}
                     <div class="mb-3">
-                        <label for="password" class="form-label">Пароль</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <label for="password" class="form-label">{% if crew_member %}Новый пароль{% else %}Пароль{% endif %}</label>
+                        <input type="password" class="form-control" id="password" name="password" {% if not crew_member %}required{% endif %}>
+                        {% if crew_member %}
+                        <small class="text-muted">Оставьте пустым, если пароль менять не нужно.</small>
+                        {% endif %}
                     </div>
                     <div class="mb-3">
                         <label for="email" class="form-label">Email</label>
-                        <input type="email" class="form-control" id="email" name="email">
+                        <input type="email" class="form-control" id="email" name="email" value="{% if crew_member %}{{ crew_member.user.email }}{% endif %}">
                     </div>
                     <div class="mb-3">
                         <label for="last_name" class="form-label">Фамилия</label>
-                        <input type="text" class="form-control" id="last_name" name="last_name" required>
+                        <input type="text" class="form-control" id="last_name" name="last_name" value="{% if crew_member %}{{ crew_member.user.last_name }}{% endif %}" required>
                     </div>
                     <div class="mb-3">
                         <label for="first_name" class="form-label">Имя</label>
-                        <input type="text" class="form-control" id="first_name" name="first_name" required>
+                        <input type="text" class="form-control" id="first_name" name="first_name" value="{% if crew_member %}{{ crew_member.user.first_name }}{% endif %}" required>
                     </div>
                     <div class="mb-3">
                         <label for="patronymic" class="form-label">Отчество</label>
-                        <input type="text" class="form-control" id="patronymic" name="patronymic">
+                        <input type="text" class="form-control" id="patronymic" name="patronymic" value="{{ patronymic|default:'' }}">
                     </div>
                     <div class="mb-3">
-                        <label for="rank" class="form-label">Должность/Звание</label>
+                        <label for="rank" class="form-label">Должность</label>
                         <select class="form-select" id="rank" name="rank">
                             {% for value, label in rank_choices %}
-                                <option value="{{ value }}">{{ label }}</option>
+                                <option value="{{ value }}" {% if crew_member and crew_member.rank == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
+                        <small class="text-muted">Если выбрать роль капитана, пользователю автоматически будет выдан доступ капитана.</small>
                     </div>
                     <div class="mb-3">
-                        <label for="assigned_ship" class="form-label">Закрепленное судно (опционально)</label>
+                        <label for="contract_end_date" class="form-label">Контракт до</label>
+                        <input type="text" class="form-control" id="contract_end_date" name="contract_end_date" value="{{ contract_end_date_value }}" placeholder="{{ date_input_placeholder }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="assigned_ship" class="form-label">Закреплённое судно</label>
                         <select class="form-select" id="assigned_ship" name="assigned_ship">
-                            <option value="">Не назначено</option>
+                            <option value="">Резерв без привязки к судну</option>
                             {% for ship in ships %}
-                                <option value="{{ ship.id }}">{{ ship.name }}</option>
+                                <option value="{{ ship.id }}" {% if crew_member and crew_member.assigned_ship_id == ship.id %}selected{% endif %}>{{ ship.name }}</option>
                             {% endfor %}
                         </select>
                     </div>

@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% load static %}
 
 {% block title %}Экипаж{% endblock %}
 
@@ -13,12 +12,31 @@
 {% block content %}
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">Список экипажа</h5>
-        <a href="#" class="btn btn-sm btn-primary">
-            <i class="bi bi-person-plus"></i> Добавить члена экипажа
+        <h5 class="mb-0">Список экипажа и резерва</h5>
+        {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
+        <a href="{% url 'fleet:crew_create' %}" class="btn btn-sm btn-primary">
+            <i class="bi bi-person-plus"></i> Добавить сотрудника
         </a>
+        {% endif %}
     </div>
-    <div class="card-body p-0">
+    <div class="card-body">
+        <div class="mb-3 d-flex flex-wrap gap-2">
+            <div class="btn-group" role="group" aria-label="Фильтры контрактов">
+                <a href="?contract_status=all&assignment={{ assignment_filter }}" class="btn btn-sm btn-outline-secondary {% if contract_filter == 'all' %}active{% endif %}">Все</a>
+                <a href="?contract_status=expired&assignment={{ assignment_filter }}" class="btn btn-sm btn-outline-danger {% if contract_filter == 'expired' %}active{% endif %}">Истёк</a>
+                <a href="?contract_status=expires_7&assignment={{ assignment_filter }}" class="btn btn-sm btn-outline-warning {% if contract_filter == 'expires_7' %}active{% endif %}">7 дней</a>
+                <a href="?contract_status=expires_30&assignment={{ assignment_filter }}" class="btn btn-sm btn-outline-warning {% if contract_filter == 'expires_30' %}active{% endif %}">30 дней</a>
+                <a href="?contract_status=active&assignment={{ assignment_filter }}" class="btn btn-sm btn-outline-success {% if contract_filter == 'active' %}active{% endif %}">Активен</a>
+                <a href="?contract_status=no_contract&assignment={{ assignment_filter }}" class="btn btn-sm btn-outline-info {% if contract_filter == 'no_contract' %}active{% endif %}">Без контракта</a>
+            </div>
+            <div class="btn-group" role="group" aria-label="Фильтры назначения">
+                <a href="?contract_status={{ contract_filter }}&assignment=all" class="btn btn-sm btn-outline-secondary {% if assignment_filter == 'all' %}active{% endif %}">Все сотрудники</a>
+                <a href="?contract_status={{ contract_filter }}&assignment=assigned" class="btn btn-sm btn-outline-secondary {% if assignment_filter == 'assigned' %}active{% endif %}">Назначенные</a>
+                <a href="?contract_status={{ contract_filter }}&assignment=reserve" class="btn btn-sm btn-outline-secondary {% if assignment_filter == 'reserve' %}active{% endif %}">Резерв</a>
+            </div>
+            <small class="text-muted align-self-center">Сегодня: {{ today|date:"d.m.Y" }}</small>
+        </div>
+
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead class="table-light">
@@ -33,7 +51,7 @@
                 </thead>
                 <tbody>
                     {% for member in crew %}
-                    <tr>
+                    <tr class="{% if member.is_contract_expired %}table-danger{% elif member.is_contract_expiring_soon %}table-warning{% endif %}">
                         <td>
                             <strong>{{ member.user.get_full_name|default:member.user.username }}</strong><br>
                             <small class="text-muted">{{ member.user.email|default:"—" }}</small>
@@ -43,31 +61,44 @@
                             {% if member.assigned_ship %}
                                 <a href="{% url 'fleet:ship_detail' member.assigned_ship.id %}">{{ member.assigned_ship.name }}</a>
                             {% else %}
-                                <span class="text-muted">Не назначено</span>
+                                <span class="badge bg-secondary">Резерв</span>
                             {% endif %}
                         </td>
-                        <td>{{ member.contract_end_date|date:"d.m.Y"|default:"—" }}</td>
                         <td>
-                            {% if member.contract_end_date and member.contract_end_date < today %}
-                                <span class="badge bg-danger">Истёк</span>
+                            {% if member.contract_end_date %}
+                                {{ member.contract_end_date|date:"d.m.Y" }}
                             {% else %}
-                                <span class="badge bg-success">Активен</span>
+                                <span class="text-muted">—</span>
                             {% endif %}
                         </td>
                         <td>
-                            <a href="#" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye"></i>
-                            </a>
+                            {% with status=member.contract_status %}
+                                {% if status == 'expired' %}
+                                    <span class="badge bg-danger text-white">Истёк</span>
+                                {% elif status == 'expires_soon_7' %}
+                                    <span class="badge bg-warning text-dark">7 дней</span>
+                                {% elif status == 'expires_soon_30' %}
+                                    <span class="badge bg-warning text-dark">30 дней</span>
+                                {% elif status == 'active' %}
+                                    <span class="badge bg-success">Активен</span>
+                                {% elif status == 'no_contract' %}
+                                    <span class="badge bg-info text-dark">Без контракта</span>
+                                {% endif %}
+                            {% endwith %}
+                        </td>
+                        <td>
                             {% if user.role.role == 'director' or user.role.role == 'fleet_manager' %}
-                            <a href="#" class="btn btn-sm btn-outline-secondary">
-                                <i class="bi bi-pencil"></i>
+                            <a href="{% url 'fleet:crew_edit' member.id %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-pencil"></i> Назначить
                             </a>
+                            {% else %}
+                            <span class="text-muted">Просмотр</span>
                             {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center py-4">Нет данных об экипаже</td>
+                        <td colspan="6" class="text-center py-4">Нет данных по экипажу</td>
                     </tr>
                     {% endfor %}
                 </tbody>

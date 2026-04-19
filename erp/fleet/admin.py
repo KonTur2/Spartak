@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Ship, CrewMember, Voyage, Maintenance, Contractor
+from .models import Contractor, CrewMember, Maintenance, MaintenanceLog, RepairWork, Ship, Voyage
 
 
 @admin.register(Ship)
@@ -28,9 +28,24 @@ class MaintenanceAdmin(admin.ModelAdmin):
     list_display = ('ship', 'maintenance_type', 'start_date', 'end_date', 'status', 'contractor', 'contractor_text')
     list_filter = ('status', 'maintenance_type')
     search_fields = ('ship__name', 'description')
+    filter_horizontal = ('repair_works',)
 
 
 @admin.register(Contractor)
 class ContractorAdmin(admin.ModelAdmin):
     list_display = ('name', 'contact_person', 'phone', 'email', 'specialization')
     search_fields = ('name', 'contact_person', 'phone')
+
+
+@admin.register(MaintenanceLog)
+class MaintenanceLogAdmin(admin.ModelAdmin):
+    list_display = ('ship', 'recorded_at', 'engine_hours', 'author')
+    list_filter = ('ship', 'author')
+    search_fields = ('ship__name', 'note', 'author__username', 'author__first_name', 'author__last_name')
+    autocomplete_fields = ('ship', 'author')
+
+
+@admin.register(RepairWork)
+class RepairWorkAdmin(admin.ModelAdmin):
+    list_display = ('name', 'code', 'base_cost')
+    search_fields = ('name', 'code')
